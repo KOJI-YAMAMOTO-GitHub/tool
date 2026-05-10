@@ -4,62 +4,75 @@
     <meta charset="UTF-8">
     <title>CSV電卓</title>
     <style>
-        html, body { 
-            height: 100%; 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; 
-        }
-        
+        /* ページ全体のスクロールを有効にする */
         body { 
-            display: flex; 
-            flex-direction: column; 
             font-family: sans-serif; 
             padding: 20px; 
-            box-sizing: border-box; 
+            background-color: #fff;
             color: #333; 
+            line-height: 1.6;
+            margin: 0;
         }
 
-        .header-content { flex-shrink: 0; }
+        .header-content { 
+            padding: 20px;
+            background: #fff;
+        }
 
         h2 { margin-top: 0; }
-        textarea { width: 100%; height: 100px; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; resize: none; }
+        textarea { 
+            width: 100%; 
+            height: 120px; 
+            margin-bottom: 10px; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            box-sizing: border-box; 
+            resize: vertical; 
+        }
         
+        /* 1. 総合計金額のボックスを最上部に固定 */
         .summary-box { 
             background-color: #f0f7ff; 
             border: 2px solid #007bff; 
-            padding: 10px 15px; 
-            margin: 10px 0; 
+            padding: 15px; 
+            margin: 0 20px 20px 20px; 
             border-radius: 8px;
             display: none;
+            position: sticky;
+            top: 10px; /* 画面最上部からの距離 */
+            z-index: 100;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .total-amount { font-size: 1.5rem; font-weight: bold; color: #007bff; }
 
         .table-container {
-            flex-grow: 1;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            margin: 0 20px 20px 20px;
             display: none;
         }
 
-        table { border-collapse: collapse; width: 100%; }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            background-color: white;
+        }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
 
-        /* ヘッダーを固定 */
+        /* 2. 表のタイトル行（th）を固定 */
+        /* summary-boxの高さ（約75px）＋余白分を考慮してtopを設定 */
         th { 
             background-color: #f4f4f4; 
             position: sticky; 
-            top: 0; 
-            z-index: 1; 
+            top: 85px; /* summary-boxの下に張り付くように調整 */
+            z-index: 90; 
+            box-shadow: 0 1px 0 #ddd;
         }
 
-        /* 小計列を少し強調 */
         td:first-child { font-weight: bold; color: #333; }
-
         tr:nth-child(even) { background-color: #fafafa; }
-        .error { color: #dc3545; margin-bottom: 10px; font-weight: bold; flex-shrink: 0; }
-        button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 1rem; }
+        
+        .error { color: #dc3545; margin: 0 20px 10px 20px; font-weight: bold; }
+        button { padding: 10px 25px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 1rem; }
         button:hover { background: #0056b3; }
     </style>
 </head>
@@ -70,15 +83,16 @@
         <p>形式：金額,個数,項目（金額のみでもOK）</p>
         <textarea id="csvInput" placeholder="500,2,往復交通費&#10;100&#10;300,2,&#10;200,2&#10;100,,大人"></textarea>
         <br>
-        <button onclick="processCSV()">計算</button>
-
-        <div id="summaryBox" class="summary-box">
-            <span>総合計金額: </span>
-            <span id="totalDisplay" class="total-amount">0</span><span> 円</span>
-        </div>
+        <button onclick="processCSV()">計算実行</button>
     </div>
 
     <div id="errorMsg" class="error"></div>
+
+    <!-- 固定表示される合計金額エリア -->
+    <div id="summaryBox" class="summary-box">
+        <span>総合計金額: </span>
+        <span id="totalDisplay" class="total-amount">0</span><span> 円</span>
+    </div>
 
     <div id="resultArea" class="table-container"></div>
 
@@ -96,7 +110,7 @@
             summaryBox.style.display = 'none';
 
             if (!input) {
-                errorMsg.textContent = 'CSVデータを見入力してください。';
+                errorMsg.textContent = 'CSVデータを入力してください。';
                 return;
             }
 
@@ -121,8 +135,6 @@
 
                     const columns = trimmedLine.split(',');
                     
-                    // --- 解析: 金額, 個数, 品名 ---
-                    // 1. 金額 (必須)
                     const rawPrice = columns[0] ? columns[0].trim() : "";
                     const price = parseInt(rawPrice);
 
@@ -130,20 +142,16 @@
                         throw new Error(`${index + 1}行目の「金額」が正しくありません。`);
                     }
 
-                    // 2. 個数 (デフォルト1)
                     let rawQuantity = columns[1] ? columns[1].trim() : "";
                     let quantity = parseInt(rawQuantity);
                     if (isNaN(quantity)) quantity = 1;
 
-                    // 3. 品名 (デフォルト"-")
                     let name = columns[2] ? columns[2].trim() : "";
                     if (name === "") name = "-";
 
-                    // 計算
                     const subtotal = price * quantity;
                     totalAll += subtotal;
 
-                    // 表示順に合わせてHTML生成: 小計, 単価, 個数, 品目
                     html += `<tr>
                         <td>${subtotal.toLocaleString()}円</td>
                         <td>${price.toLocaleString()}円</td>
