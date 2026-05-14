@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ブラウザマイク拡声器</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+        button { padding: 20px 40px; font-size: 1.2rem; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <h1>ブラウザ拡声器</h1>
+    <p>Bluetoothスピーカーを接続した状態でボタンを押してください</p>
+    <button id="startButton">マイクON（拡声開始）</button>
+
+    <script>
+        document.getElementById('startButton').addEventListener('click', async () => {
+            try {
+                // マイクのアクセス権を取得
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // オーディオコンテキストの作成
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(stream);
+                
+                // 出力先へ接続
+                source.connect(audioContext.destination);
+                
+                document.getElementById('startButton').innerText = "動作中...";
+                document.getElementById('startButton').disabled = true;
+            } catch (err) {
+                alert("マイクの使用が許可されませんでした: " + err);
+            }
+        });
+    </script>
+</body>
+</html>
