@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オフラインマインドマップ</title>
+    <style>
+        :root {
+            --bg-color: #f5f7fa;
+            --sidebar-bg: #ffffff;
+            --text-color: #333333;
+            --border-color: #e0e0e0;
+            --input-bg: #ffffff;
+            --input-border: #ccc;
+            --grid-color: #eef0f2;
+            --viewer-bg: #f8f9fa;
+            --node-rect-bg: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1c1e;
+            --sidebar-bg: #25282a;
+            --text-color: #e3e2e6;
+            --border-color: #43474a;
+            --input-bg: #1c1b1f;
+            --input-border: #43474a;
+            --grid-color: #2d3133;
+            --viewer-bg: #141416;
+            --node-rect-bg: #2d3133;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html {
+            width: 100%; height: 100%;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            overflow: hidden; background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* 基本構造（PC向け：左右並び） */
+        .container { display: flex; width: 100%; height: 100%; position: relative; flex-direction: row; }
+
+        /* 左側：サイドバー */
+        .sidebar {
+            width: 350px; height: 100%; background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color); display: flex; flex-direction: column;
+            padding: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 10;
+            transition: transform 0.3s ease, width 0.3s ease, height 0.3s ease;
+        }
+        .sidebar.hidden { transform: translateX(-350px); width: 0; padding: 0; border: none; overflow: hidden; }
+
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .sidebar h2 { font-size: 16px; color: var(--text-color); }
+        .sidebar p { font-size: 12px; color: #888; margin-bottom: 15px; line-height: 1.4; }
+
+        /* コントロール */
+        .top-controls { display: flex; gap: 8px; }
+        .theme-toggle, .focus-btn {
+            padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer;
+            border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-color);
+        }
+        .theme-toggle:hover, .focus-btn:hover { opacity: 0.8; }
+
+        .layout-selector { display: flex; margin-bottom: 15px; background-color: #eee; padding: 3px; border-radius: 6px; }
+        [data-theme="dark"] .layout-selector { background-color: #1c1b1f; }
+        
+        .layout-btn {
+            flex: 1; padding: 8px; border: none; background: none;
+            font-size: 13px; font-weight: bold; color: #888; cursor: pointer;
+            border-radius: 4px; transition: all 0.2s;
+        }
+        .layout-btn.active { background-color: var(--sidebar-bg); color: #4a90e2; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        textarea {
+            flex: 1; width: 100%; padding: 10px; font-family: monospace; font-size: 14px;
+            border: 1px solid var(--input-border); border-radius: 4px; resize: none; outline: none; line-height: 1.5;
+            background-color: var(--input-bg); color: var(--text-color);
+        }
+        .btn-download {
+            margin-top: 15px; padding: 10px; background-color: #4a90e2;
+            color: white; border: none; border-radius: 4px; cursor: pointer;
+            font-weight: bold; font-size: 14px;
+        }
+
+        /* 右側：描画エリア */
+        .viewer { flex: 1; height: 100%; position: relative; overflow: auto; cursor: grab; background-color: var(--viewer-bg); }
+        .viewer:active { cursor: grabbing; }
+        #mindmap-svg { position: absolute; top: 0; left: 0; min-width: 4000px; min-height: 4000px; }
+
+        /* フローティング集中モード解除ボタン */
+        .floating-ctrl {
+            position: absolute; top: 15px; left: 15px; z-index: 20; display: none;
+            padding: 8px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px;
+            font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        /* 📱 スマートフォン向けメディアクエリ */
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+            
+            .sidebar {
+                width: 100%; height: 42%;
+                border-right: none; border-bottom: 1px solid var(--border-color);
+                padding: 10px;
+            }
+            .sidebar p { display: none; }
+            .sidebar h2 { font-size: 14px; }
+            .sidebar-header { margin-bottom: 8px; }
+            .layout-selector { margin-bottom: 8px; }
+            .layout-btn { padding: 5px; font-size: 11px; }
+            textarea { font-size: 13px; }
+            .btn-download { margin-top: 8px; padding: 6px; font-size: 12px; }
+
+            .sidebar.hidden { transform: translateY(-100%); height: 0; padding: 0; }
+            .viewer { width: 100%; height: 58%; }
+            .floating-ctrl { top: auto; bottom: 15px; left: 15px; }
+        }
+
+        /* SVGインタラクション */
+        .node-group { cursor: pointer; transition: opacity 0.2s; }
+        .node-group:hover rect { filter: brightness(0.95); stroke-width: 3px; }
+        [data-theme="dark"] .node-group:hover rect { filter: brightness(1.2); }
+        .node-group:hover circle { r: 5.5; filter: brightness(1.2); }
+        .node-text { user-select: none; transition: font-size 0.2s; }
+        
+        .link-path { transition: stroke-width 0.2s, stroke 0.2s; }
+        .link-path.highlight { stroke-width: 4px !important; filter: drop-shadow(0px 0px 3px rgba(74,144,226,0.5)); }
+        .node-group.highlight text { fill: #4a90e2 !important; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="floating-ctrl" id="btn-restore-view">← エディタを表示する</button>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2 id="sidebar-title">オフラインマインドマップ</h2>
+            <div class="top-controls">
+                <button class="theme-toggle" id="theme-toggle">🌙 ダークモード</button>
+                <button class="focus-btn" id="btn-focus-map">🗺 集中モード</button>
+            </div>
+        </div>
+        <p>Tabで1つ右へ、Shift+Tabで1つ左へ階層を移動できます。</p>
+        
+        <div class="layout-selector">
+            <button class="layout-btn active" id="btn-horizontal">横展開</button>
+            <button class="layout-btn" id="btn-vertical">縦展開</button>
+        </div>
+
+        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力してください...">マインドマップの作り方
+    準備するもの
+        パソコン
+            ソフトウェア
+                ブラウザについて学ぶ
+                    Google Chromeブラウザ
+                    Microsoft Edge
+        アイデア
+    基本ルール
+        中央にテーマを書く
+        関連するワードを繋ぐ
+    メリット
+        全体像が一目で綺麗に見える</textarea>
+        <button class="btn-download" id="download-btn">画像ダウンロード</button>
+    </div>
+
+    <div class="viewer" id="viewer">
+        <svg id="mindmap-svg">
+            <defs>
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                    <path id="grid-path" d="M 40 0 L 0 0 0 40" fill="none" stroke="#eef0f2" stroke-width="1"/>
+                </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#grid)" />
+            <g id="links-group"></g>
+            <g id="nodes-group"></g>
+        </svg>
+    </div>
+</div>
+
+<script>
+    const textInput = document.getElementById('text-input');
+    const svg = document.getElementById('mindmap-svg');
+    const nodesGroup = document.getElementById('nodes-group');
+    const linksGroup = document.getElementById('links-group');
+    const viewer = document.getElementById('viewer');
+    const downloadBtn = document.getElementById('download-btn');
+    const btnHorizontal = document.getElementById('btn-horizontal');
+    const btnVertical = document.getElementById('btn-vertical');
+    const themeToggle = document.getElementById('theme-toggle');
+    const btnFocusMap = document.getElementById('btn-focus-map');
+    const btnRestoreView = document.getElementById('btn-restore-view');
+    const sidebar = document.getElementById('sidebar');
+    const gridPath = document.getElementById('grid-path');
+
+    const STORAGE_KEY = 'mindmap_text_data_v3';
+    let currentLayout = 'horizontal'; 
+    let treeYCounter = 0;
+    
+    let collapsedNodes = new Set();
+    let globalNodeMap = new Map();
+
+    window.addEventListener('DOMContentLoaded', () => {
+        if (window.innerWidth <= 768) {
+            viewer.scrollLeft = 20; viewer.scrollTop = 750;
+        } else {
+            viewer.scrollLeft = 100; viewer.scrollTop = 50;
+        }
+        
+        const savedText = localStorage.getItem(STORAGE_KEY);
+        if (savedText) textInput.value = savedText;
+        
+        const savedTheme = localStorage.getItem('mindmap_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.textContent = savedTheme === 'dark' ? '☀️ ライトモード' : '🌙 ダークモード';
+        updateGridColor(savedTheme);
+
+        renderMap();
+    });
+
+    // キーボード操作（オートインデント ＆ Tab操作）
+    textInput.addEventListener('keydown', (e) => {
+        const start = textInput.selectionStart;
+        const end = textInput.selectionEnd;
+        const value = textInput.value;
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const lastNewLine = value.lastIndexOf('\n', start - 1);
+            const lineStart = lastNewLine + 1;
+            const currentLine = value.substring(lineStart, start);
+            const indentMatch = currentLine.match(/^[\s\t]*/);
+            const indent = indentMatch ? indentMatch[0] : '';
+            const insertText = '\n' + indent;
+            textInput.value = value.substring(0, start) + insertText + value.substring(end);
+            textInput.selectionStart = textInput.selectionEnd = start + insertText.length;
+            localStorage.setItem(STORAGE_KEY, textInput.value);
+            renderMap();
+        }
+
+        if (e.key === 'Tab' && !e.shiftKey) {
+            e.preventDefault();
+            const lastNewLine = value.lastIndexOf('\n', start - 1);
+            const lineStart = lastNewLine + 1;
+            textInput.value = value.substring(0, lineStart) + '    ' + value.substring(lineStart);
+            textInput.selectionStart = textInput.selectionEnd = start + 4;
+            localStorage.setItem(STORAGE_KEY, textInput.value);
+            renderMap();
+        }
+
+        if (e.key === 'Tab' && e.shiftKey) {
+            e.preventDefault();
+            const lastNewLine = value.lastIndexOf('\n', start - 1);
+            const lineStart = lastNewLine + 1;
+            const currentLine = value.substring(lineStart, start);
+            if (currentLine.startsWith('    ')) {
+                textInput.value = value.substring(0, lineStart) + currentLine.substring(4) + value.substring(start);
+                textInput.selectionStart = textInput.selectionEnd = start - 4;
+                localStorage.setItem(STORAGE_KEY, textInput.value);
+                renderMap();
+            }
+        }
+    });
+
+    textInput.addEventListener('input', () => {
+        localStorage.setItem(STORAGE_KEY, textInput.value);
+        renderMap();
+    });
+
+    function updateGridColor(theme) {
+        gridPath.setAttribute('stroke', theme === 'dark' ? '#2d3133' : '#eef0f2');
+    }
+
+    themeToggle.addEventListener('click', () => {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const nextTheme = isDark ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        themeToggle.textContent = nextTheme === 'dark' ? '☀️ ライトモード' : '🌙 ダークモード';
+        localStorage.setItem('mindmap_theme', nextTheme);
+        updateGridColor(nextTheme);
+        renderMap();
+    });
+
+    btnFocusMap.addEventListener('click', () => {
+        sidebar.classList.add('hidden');
+        btnRestoreView.style.display = 'block';
+    });
+    btnRestoreView.addEventListener('click', () => {
+        sidebar.classList.remove('hidden');
+        btnRestoreView.style.display = 'none';
+    });
+
+    btnHorizontal.addEventListener('click', () => {
+        currentLayout = 'horizontal';
+        btnHorizontal.classList.add('active'); btnVertical.classList.remove('active');
+        renderMap();
+    });
+    btnVertical.addEventListener('click', () => {
+        currentLayout = 'vertical';
+        btnVertical.classList.add('active'); btnHorizontal.classList.remove('active');
+        renderMap();
+    });
+
+    function parseText(text) {
+        const lines = text.split('\n');
+        const root = { id: 'root', text: 'テーマ', children: [], depth: 0, parentId: null };
+        const stack = [root];
+        let isFirstLine = true;
+        let idCounter = 0;
+
+        lines.forEach(line => {
+            if (line.trim() === '') return;
+            const indentMatch = line.match(/^[\s\t]*/);
+            const depth = indentMatch[0].replace(/\t/g, '    ').length / 4;
+            const content = line.trim();
+            idCounter++;
+            const nodeId = `node_${idCounter}`;
+            const node = { id: nodeId, text: content, children: [], depth: depth, parentId: null };
+
+            if (isFirstLine) {
+                root.text = content; root.depth = 0; root.id = 'root';
+                stack[0] = root; isFirstLine = false;
+                return;
+            }
+            while (stack.length > 0 && stack[stack.length - 1].depth >= depth) stack.pop();
+            if (stack.length > 0) {
+                node.parentId = stack[stack.length - 1].id;
+                stack[stack.length - 1].children.push(node);
+                stack.push(node);
+            } else {
+                node.parentId = 'root';
+                root.children.push(node);
+                stack.push(node);
+            }
+        });
+        return root;
+    }
+
+    function calculateLayout(node, startX, startY) {
+        globalNodeMap.set(node.id, node);
+
+        const charCount = node.text.length;
+        let fontSize = 14;
+        let scaleFactor = 14.5;
+        if (currentLayout === 'horizontal' && charCount > 11) {
+            fontSize = charCount > 18 ? 11 : 12; 
+            scaleFactor = charCount > 18 ? 11.5 : 12.5;
+        }
+        node.fontSize = fontSize;
+
+        if (currentLayout === 'horizontal') {
+            let widthCalc = 0;
+            for (let i = 0; i < node.text.length; i++) {
+                widthCalc += (node.text.charCodeAt(i) <= 0x007e || (0xff61 <= node.text.charCodeAt(i) && node.text.charCodeAt(i) <= 0xff9f)) ? (scaleFactor/2) : scaleFactor;
+            }
+            node.width = Math.max(widthCalc + 24, 80);
+            node.height = 35;
+            node.x = startX;
+            node.y = startY - node.height / 2;
+
+            if (collapsedNodes.has(node.id)) {
+                node.children.forEach(c => hideSubtree(c));
+                return;
+            }
+
+            let totalHeight = calculateSubtreeSize(node.children);
+            let currentY = startY - totalHeight / 2;
+            node.children.forEach(child => {
+                let size = getTreeSize(child);
+                calculateLayout(child, node.x + node.width + 60, currentY + size / 2);
+                currentY += size;
+            });
+        } else {
+            node.width = 150; node.height = 30;
+            node.x = startX + (node.depth * 45);
+            node.y = treeYCounter;
+            treeYCounter += node.height + 12;
+
+            if (collapsedNodes.has(node.id)) {
+                node.children.forEach(c => hideSubtree(c));
+                return;
+            }
+            node.children.forEach(child => calculateLayout(child, startX, startY));
+        }
+    }
+
+    function hideSubtree(node) {
+        node.x = -9999; node.y = -9999; 
+        globalNodeMap.set(node.id, node);
+        node.children.forEach(c => hideSubtree(c));
+    }
+
+    function calculateSubtreeSize(children) {
+        return children.reduce((acc, child) => acc + getTreeSize(child), 0);
+    }
+    function getTreeSize(node) {
+        if (node.x === -9999 || collapsedNodes.has(node.id) || node.children.length === 0) return 50;
+        return calculateSubtreeSize(node.children);
+    }
+
+    function getColorForDepth(depth) {
+        if (depth === 0) return '#4a90e2';
+        return `hsl(${(depth * 65) % 360}, 75%, 50%)`;
+    }
+
+    function renderMap() {
+        nodesGroup.innerHTML = ''; linksGroup.innerHTML = '';
+        globalNodeMap.clear();
+        const rootData = parseText(textInput.value);
+        treeYCounter = 60;
+        calculateLayout(rootData, currentLayout === 'horizontal' ? 150 : 60, 1000);
+        drawNodeAndLinks(rootData);
+    }
+
+    function drawNodeAndLinks(node) {
+        if (node.x === -9999) return;
+
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const txtColor = isDark ? '#e3e2e6' : '#333333';
+        const rectBg = isDark ? '#2d3133' : '#ffffff';
+
+        node.children.forEach(child => {
+            if (child.x === -9999) return;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', getColorForDepth(child.depth));
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('class', `link-path link-from-${node.id} link-to-${child.id}`);
+
+            let d = '';
+            if (currentLayout === 'horizontal') {
+                const sX = node.x + node.width, sY = node.y + node.height / 2;
+                const eX = child.x, eY = child.y + child.height / 2;
+                const cX = sX + (eX - sX) / 2;
+                d = `M ${sX} ${sY} C ${cX} ${sY}, ${cX} ${eY}, ${eX} ${eY}`;
+            } else {
+                const sX = node.depth === 0 ? node.x + 15 : node.x - 6;
+                const sY = node.y + node.height;
+                const eX = child.x - 6;
+                const eY = child.y + child.height / 2;
+                d = `M ${sX} ${sY} V ${eY} H ${eX}`;
+            }
+            path.setAttribute('d', d);
+            linksGroup.appendChild(path);
+            drawNodeAndLinks(child);
+        });
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'node-group');
+        g.setAttribute('id', `g-${node.id}`);
+
+        g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
+        g.addEventListener('mouseleave', () => highlightBranch(node.id, false));
+        g.addEventListener('click', (e) => {
+            if (node.children.length > 0) {
+                if (collapsedNodes.has(node.id)) {
+                    collapsedNodes.delete(node.id);
+                } else {
+                    collapsedNodes.add(node.id);
+                }
+                renderMap();
+            }
+        });
+        
+        if (currentLayout === 'horizontal' || node.depth === 0) {
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            const rW = (currentLayout === 'vertical' && node.depth === 0) ? 180 : node.width;
+            rect.setAttribute('x', node.x); rect.setAttribute('y', node.y);
+            rect.setAttribute('width', rW); rect.setAttribute('height', node.height);
+            rect.setAttribute('rx', '6'); rect.setAttribute('ry', '6');
+            
+            rect.setAttribute('fill', node.depth === 0 ? '#4a90e2' : rectBg);
+            rect.setAttribute('stroke', node.depth === 0 ? '#357abd' : getColorForDepth(node.depth));
+            rect.setAttribute('stroke-width', collapsedNodes.has(node.id) ? '3' : '2');
+            if (collapsedNodes.has(node.id) && node.depth !== 0) rect.setAttribute('stroke-dasharray', '4,3');
+            g.appendChild(rect);
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'node-text');
+            text.setAttribute('x', node.x + rW / 2); text.setAttribute('y', node.y + node.height / 2 + 5);
+            text.setAttribute('text-anchor', 'middle'); text.textContent = node.text;
+            text.setAttribute('font-family', 'sans-serif'); 
+            
+            text.setAttribute('fill', node.depth === 0 ? '#ffffff' : txtColor);
+            text.setAttribute('font-size', node.depth === 0 ? '15' : node.fontSize);
+            if (node.depth === 0 || collapsedNodes.has(node.id)) text.setAttribute('font-weight', 'bold');
+            g.appendChild(text);
+        } else {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', node.x - 6); circle.setAttribute('cy', node.y + node.height / 2);
+            circle.setAttribute('r', collapsedNodes.has(node.id) ? '5.5' : '3.5');
+            circle.setAttribute('fill', getColorForDepth(node.depth));
+            if (collapsedNodes.has(node.id)) {
+                circle.setAttribute('stroke', txtColor);
+                circle.setAttribute('stroke-width', '1.5');
+            }
+            g.appendChild(circle);
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'node-text');
+            text.setAttribute('x', node.x + 8); text.setAttribute('y', node.y + node.height / 2 + 5);
+            text.setAttribute('text-anchor', 'start'); text.textContent = node.text;
+            text.setAttribute('font-family', 'sans-serif'); 
+            
+            text.setAttribute('fill', txtColor);
+            text.setAttribute('font-size', '14');
+            if (collapsedNodes.has(node.id)) text.setAttribute('font-weight', 'bold');
+            g.appendChild(text);
+        }
+        nodesGroup.appendChild(g);
+    }
+
+    function highlightBranch(nodeId, enable) {
+        const action = enable ? 'add' : 'remove';
+        const targetNode = globalNodeMap.get(nodeId);
+        if (!targetNode) return;
+
+        const gEl = document.getElementById(`g-${nodeId}`);
+        if (gEl) gEl.classList[action]('highlight');
+
+        targetNode.children.forEach(child => {
+            const paths = document.querySelectorAll(`.link-from-${nodeId}.link-to-${child.id}`);
+            paths.forEach(p => p.classList[action]('highlight'));
+            highlightBranch(child.id, enable);
+        });
+    }
+
+    // ドラッグ＆タッチスクロール
+    let isDown = false, sX, sY, sL, sT;
+    
+    viewer.addEventListener('mousedown', (e) => {
+        if (e.target.tagName === 'svg' || e.target.id === 'mindmap-svg' || e.target.getAttribute('fill') === 'url(#grid)') {
+            isDown = true; sX = e.pageX - viewer.offsetLeft; sY = e.pageY - viewer.offsetTop;
+            sL = viewer.scrollLeft; sT = viewer.scrollTop;
+        }
+    });
+    viewer.addEventListener('mousemove', (e) => {
+        if (!isDown) return; e.preventDefault();
+        viewer.scrollLeft = sL - (e.pageX - viewer.offsetLeft - sX);
+        viewer.scrollTop = sT - (e.pageY - viewer.offsetTop - sY);
+    });
+    viewer.addEventListener('mouseup', () => isDown = false);
+
+    viewer.addEventListener('touchstart', (e) => {
+        if (e.target.tagName === 'svg' || e.target.id === 'mindmap-svg' || e.target.getAttribute('fill') === 'url(#grid)') {
+            isDown = true;
+            sX = e.touches[0].pageX - viewer.offsetLeft;
+            sY = e.touches[0].pageY - viewer.offsetTop;
+            sL = viewer.scrollLeft; sT = viewer.scrollTop;
+        }
+    });
+    viewer.addEventListener('touchmove', (e) => {
+        if (!isDown) return;
+        e.preventDefault(); 
+        viewer.scrollLeft = sL - (e.touches[0].pageX - viewer.offsetLeft - sX);
+        viewer.scrollTop = sT - (e.touches[0].pageY - viewer.offsetTop - sY);
+    }, { passive: false });
+    viewer.addEventListener('touchend', () => isDown = false);
+
+
+    // 画像保存（ぴったり切り出し）
+    downloadBtn.addEventListener('click', () => {
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        let hasVisibleNodes = false;
+
+        globalNodeMap.forEach(node => {
+            if (node.x === -9999) return; 
+            hasVisibleNodes = true;
+
+            const left = node.x;
+            const right = node.x + (currentLayout === 'vertical' && node.depth === 0 ? 180 : node.width);
+            const top = node.y;
+            const bottom = node.y + node.height;
+
+            if (left < minX) minX = left;
+            if (right > maxX) maxX = right;
+            if (top < minY) minY = top;
+            if (bottom > maxY) maxY = bottom;
+        });
+
+        if (!hasVisibleNodes) { minX = 0; maxX = 500; minY = 0; maxY = 500; }
+
+        const padding = 50;
+        const cropWidth = (maxX - minX) + (padding * 2);
+        const cropHeight = (maxY - minY) + (padding * 2);
+
+        const originalViewBox = svg.getAttribute('viewBox');
+        svg.setAttribute('viewBox', `${minX - padding} ${minY - padding} ${cropWidth} ${cropHeight}`);
+
+        const svgData = new XMLSerializer().serializeToString(svg);
+
+        if (originalViewBox) {
+            svg.setAttribute('viewBox', originalViewBox);
+        } else {
+            svg.removeAttribute('viewBox');
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = cropWidth;
+        canvas.height = cropHeight;
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+        img.onload = () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            ctx.fillStyle = isDark ? '#141416' : '#f8f9fa';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            
+            const a = document.createElement('a'); 
+            a.download = `mindmap_${currentLayout}.png`;
+            a.href = canvas.toDataURL('image/png'); 
+            a.click();
+        };
+    });
+</script>
+</body>
+</html>
