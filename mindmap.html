@@ -82,11 +82,17 @@
             border: 1px solid var(--input-border); border-radius: 4px; resize: none; outline: none; line-height: 1.5;
             background-color: var(--input-bg); color: var(--text-color);
         }
-        .btn-download {
-            margin-top: 15px; padding: 10px; background-color: #4a90e2;
-            color: white; border: none; border-radius: 4px; cursor: pointer;
-            font-weight: bold; font-size: 14px;
+
+        /* 下部ボタンエリアのスタイル調整 */
+        .bottom-controls { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
+        .btn-action {
+            width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer;
+            font-weight: bold; font-size: 14px; text-align: center; transition: background-color 0.2s, opacity 0.2s;
         }
+        .btn-copy { background-color: #2ec4b6; color: white; }
+        .btn-copy:hover { background-color: #25a195; }
+        .btn-download { background-color: #4a90e2; color: white; }
+        .btn-download:hover { background-color: #357abd; }
 
         .viewer { flex: 1; height: 100%; position: relative; overflow: auto; cursor: grab; background-color: var(--viewer-bg); }
         .viewer:active { cursor: grabbing; }
@@ -102,7 +108,7 @@
             .container { flex-direction: column; }
             
             .sidebar {
-                width: 100%; height: 45%;
+                width: 100%; height: 48%;
                 border-right: none; border-bottom: 1px solid var(--border-color);
                 padding: 10px;
             }
@@ -113,10 +119,11 @@
             .collapse-controls { margin-bottom: 8px; gap: 4px; }
             .layout-btn, .collapse-btn { padding: 4px; font-size: 11px; }
             textarea { font-size: 13px; }
-            .btn-download { margin-top: 8px; padding: 6px; font-size: 12px; }
+            .bottom-controls { margin-top: 8px; gap: 6px; }
+            .btn-action { padding: 6px; font-size: 12px; }
 
             .sidebar.hidden { transform: translateY(-100%); height: 0; padding: 0; }
-            .viewer { width: 100%; height: 55%; }
+            .viewer { width: 100%; height: 52%; }
             .floating-ctrl { top: auto; bottom: 15px; left: 15px; }
         }
 
@@ -170,7 +177,11 @@
 ### ここに25文字以上のとても長い文章を入力した場合でも綺麗に自動折り返しが行われるかテストします
 #### 長文ノードの下に子供が追加された場合
 ##### これでもう絶対に上のノードと衝突しません</textarea>
-        <button class="btn-download" id="download-btn">画像ダウンロード</button>
+        
+        <div class="bottom-controls">
+            <button class="btn-action btn-copy" id="copy-btn">📋 テキストをコピー</button>
+            <button class="btn-action btn-download" id="download-btn">画像ダウンロード</button>
+        </div>
     </div>
 
     <div class="viewer" id="viewer">
@@ -194,6 +205,7 @@
     const linksGroup = document.getElementById('links-group');
     const viewer = document.getElementById('viewer');
     const downloadBtn = document.getElementById('download-btn');
+    const copyBtn = document.getElementById('copy-btn');
     const btnHorizontal = document.getElementById('btn-horizontal');
     const btnVertical = document.getElementById('btn-vertical');
     const themeToggle = document.getElementById('theme-toggle');
@@ -223,7 +235,6 @@
         updateGridColor(savedTheme);
 
         renderMap();
-        // 初期表示時にもルートにフォーカスを合わせる
         setTimeout(focusRootNode, 50);
     });
 
@@ -308,7 +319,6 @@
         btnRestoreView.style.display = 'none';
     });
 
-    // 【修正】レイアウト切り替え時に、描画後にフォーカスをあわせる
     btnHorizontal.addEventListener('click', () => {
         currentLayout = 'horizontal';
         btnHorizontal.classList.add('active'); btnVertical.classList.remove('active');
@@ -337,23 +347,32 @@
         renderMap();
     });
 
-    // 【新機能】1ノード目（ルートノード）にスクロールをジャストフィットさせる関数
+    // 【新機能】コピーボタンの処理
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(textInput.value).then(() => {
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = '✅ コピーされました！';
+            copyBtn.style.opacity = '0.8';
+            setTimeout(() => {
+                copyBtn.textContent = originalText;
+                copyBtn.style.opacity = '1';
+            }, 1500);
+        }).catch(err => {
+            console.error('コピー失敗しました: ', err);
+        });
+    });
+
     function focusRootNode() {
         if (!rootNodeRef) return;
-        
-        // 1ノード目の位置を計算 (配置時の初期X座標はレイアウト依存)
         const targetX = currentLayout === 'horizontal' ? 150 : 60;
-        const targetY = 1000; // 横展開ベースの中心Y座標
+        const targetY = 1000;
         
         if (currentLayout === 'horizontal') {
-            // 左側から50pxあけた見え方に調整
             viewer.scrollLeft = targetX - 50;
-            // ビューワーの高さのちょうど中央にノードのYが来るように計算
             viewer.scrollTop = targetY - (viewer.clientHeight / 2);
         } else {
-            // 縦展開時は上から順に並ぶため、少し上めに持ってくる
             viewer.scrollLeft = targetX - 50;
-            viewer.scrollTop = 40; // 縦展開ツリーの一番上付近
+            viewer.scrollTop = 40;
         }
     }
 
@@ -442,7 +461,7 @@
             for (let i = 0; i < lineTxt.length; i++) {
                 const code = lineTxt.charCodeAt(i);
                 if (code <= 0x007e || (0xff61 <= code && code <= 0xff9f)) {
-                    currentLineWidth += 0.52; 
+                    currentLineWidth += 0.53; // 実測値をさらに少し微増
                 } else {
                     currentLineWidth += 1.0;
                 }
@@ -459,7 +478,8 @@
         node.fontSize = fontSize;
 
         if (currentLayout === 'horizontal') {
-            let finalWidthCalc = maxLineWidthCalc * scaleFactor;
+            // 【修正】計算された文字幅に対して一律1.2倍（20%の安全バッファ）を掛け合わせる
+            let finalWidthCalc = (maxLineWidthCalc * scaleFactor) * 1.2;
             node.width = Math.max(finalWidthCalc + 24, 80);
             node.height = 20 + (lineCount * 16);
         } else {
