@@ -69,7 +69,6 @@
         }
         .layout-btn.active { background-color: var(--sidebar-bg); color: #4a90e2; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 
-        /* 一括操作ボタンエリアのスタイル */
         .collapse-controls { display: flex; gap: 8px; margin-bottom: 15px; }
         .collapse-btn {
             flex: 1; padding: 6px; font-size: 12px; font-weight: bold; cursor: pointer;
@@ -203,7 +202,6 @@
     const sidebar = document.getElementById('sidebar');
     const gridPath = document.getElementById('grid-path');
     
-    // ボタンの要素を取得
     const btnExpandAll = document.getElementById('btn-expand-all');
     const btnCollapseAll = document.getElementById('btn-collapse-all');
 
@@ -213,15 +211,9 @@
     
     let collapsedNodes = new Set();
     let globalNodeMap = new Map();
-    let rootNodeRef = null; // 一括操作用ルーツ参照ポインタ
+    let rootNodeRef = null;
 
     window.addEventListener('DOMContentLoaded', () => {
-        if (window.innerWidth <= 768) {
-            viewer.scrollLeft = 20; viewer.scrollTop = 750;
-        } else {
-            viewer.scrollLeft = 100; viewer.scrollTop = 50;
-        }
-        
         const savedText = localStorage.getItem(STORAGE_KEY);
         if (savedText) textInput.value = savedText;
         
@@ -231,6 +223,8 @@
         updateGridColor(savedTheme);
 
         renderMap();
+        // 初期表示時にもルートにフォーカスを合わせる
+        setTimeout(focusRootNode, 50);
     });
 
     textInput.addEventListener('keydown', (e) => {
@@ -314,27 +308,28 @@
         btnRestoreView.style.display = 'none';
     });
 
+    // 【修正】レイアウト切り替え時に、描画後にフォーカスをあわせる
     btnHorizontal.addEventListener('click', () => {
         currentLayout = 'horizontal';
         btnHorizontal.classList.add('active'); btnVertical.classList.remove('active');
         renderMap();
+        focusRootNode();
     });
     btnVertical.addEventListener('click', () => {
         currentLayout = 'vertical';
         btnVertical.classList.add('active'); btnHorizontal.classList.remove('active');
         renderMap();
+        focusRootNode();
     });
 
-    // 一括操作ボタンのイベント処理
     btnExpandAll.addEventListener('click', () => {
-        collapsedNodes.clear(); // 閉じているリストを全削除
+        collapsedNodes.clear();
         renderMap();
     });
 
     btnCollapseAll.addEventListener('click', () => {
         collapsedNodes.clear();
         if (rootNodeRef) {
-            // ルートの子ノードから再帰的に閉じる処理を適用
             rootNodeRef.children.forEach(child => {
                 collapseSubtreeRecursively(child);
             });
@@ -342,9 +337,29 @@
         renderMap();
     });
 
+    // 【新機能】1ノード目（ルートノード）にスクロールをジャストフィットさせる関数
+    function focusRootNode() {
+        if (!rootNodeRef) return;
+        
+        // 1ノード目の位置を計算 (配置時の初期X座標はレイアウト依存)
+        const targetX = currentLayout === 'horizontal' ? 150 : 60;
+        const targetY = 1000; // 横展開ベースの中心Y座標
+        
+        if (currentLayout === 'horizontal') {
+            // 左側から50pxあけた見え方に調整
+            viewer.scrollLeft = targetX - 50;
+            // ビューワーの高さのちょうど中央にノードのYが来るように計算
+            viewer.scrollTop = targetY - (viewer.clientHeight / 2);
+        } else {
+            // 縦展開時は上から順に並ぶため、少し上めに持ってくる
+            viewer.scrollLeft = targetX - 50;
+            viewer.scrollTop = 40; // 縦展開ツリーの一番上付近
+        }
+    }
+
     function collapseSubtreeRecursively(node) {
         if (node.children && node.children.length > 0) {
-            collapsedNodes.add(node.id); // 子を持つノードを閉じるリストへ登録
+            collapsedNodes.add(node.id);
             node.children.forEach(child => collapseSubtreeRecursively(child));
         }
     }
@@ -516,7 +531,7 @@
         globalNodeMap.clear();
         
         const rootData = parseText(textInput.value);
-        rootNodeRef = rootData; // 一括ボタンから読み込めるようポインタを保持
+        rootNodeRef = rootData; 
         
         precalculateSizes(rootData);
         
