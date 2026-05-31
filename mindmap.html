@@ -59,7 +59,7 @@
         }
         .theme-toggle:hover, .focus-btn:hover { opacity: 0.8; }
 
-        .layout-selector { display: flex; margin-bottom: 15px; background-color: #eee; padding: 3px; border-radius: 6px; }
+        .layout-selector { display: flex; margin-bottom: 8px; background-color: #eee; padding: 3px; border-radius: 6px; }
         [data-theme="dark"] .layout-selector { background-color: #1c1b1f; }
         
         .layout-btn {
@@ -68,6 +68,15 @@
             border-radius: 4px; transition: all 0.2s;
         }
         .layout-btn.active { background-color: var(--sidebar-bg); color: #4a90e2; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        /* 一括操作ボタンエリアのスタイル */
+        .collapse-controls { display: flex; gap: 8px; margin-bottom: 15px; }
+        .collapse-btn {
+            flex: 1; padding: 6px; font-size: 12px; font-weight: bold; cursor: pointer;
+            border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-color);
+            transition: background-color 0.2s;
+        }
+        .collapse-btn:hover { background-color: rgba(74,144,226,0.1); border-color: #4a90e2; }
 
         textarea {
             flex: 1; width: 100%; padding: 10px; font-family: monospace; font-size: 14px;
@@ -94,20 +103,21 @@
             .container { flex-direction: column; }
             
             .sidebar {
-                width: 100%; height: 42%;
+                width: 100%; height: 45%;
                 border-right: none; border-bottom: 1px solid var(--border-color);
                 padding: 10px;
             }
             .sidebar p { display: none; }
             .sidebar h2 { font-size: 14px; }
             .sidebar-header { margin-bottom: 8px; }
-            .layout-selector { margin-bottom: 8px; }
-            .layout-btn { padding: 5px; font-size: 11px; }
+            .layout-selector { margin-bottom: 4px; }
+            .collapse-controls { margin-bottom: 8px; gap: 4px; }
+            .layout-btn, .collapse-btn { padding: 4px; font-size: 11px; }
             textarea { font-size: 13px; }
             .btn-download { margin-top: 8px; padding: 6px; font-size: 12px; }
 
             .sidebar.hidden { transform: translateY(-100%); height: 0; padding: 0; }
-            .viewer { width: 100%; height: 58%; }
+            .viewer { width: 100%; height: 55%; }
             .floating-ctrl { top: auto; bottom: 15px; left: 15px; }
         }
 
@@ -142,20 +152,25 @@
             <button class="layout-btn" id="btn-vertical">縦展開</button>
         </div>
 
+        <div class="collapse-controls">
+            <button class="collapse-btn" id="btn-expand-all">📂 全て展開</button>
+            <button class="collapse-btn" id="btn-collapse-all">📁 全て閉じる</button>
+        </div>
+
         <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力してください..."># マインドマップの作り方
 ## 準備するもの
 ### パソコン
-#### ソフトウェア
-##### ブラウザについて学ぶ
-###### Google Chromeブラウザ
-###### Microsoft Edge
-### アイデア
-## 基本ルール
-### 中央にテーマを書く
-### 関連するワードを繋ぐ
+#### abcdefghijklmnopqrstuvwxyz
+##### この半角ノードに子ノードを追加したときに
+###### 上のノードと被ってしまうバグが発生していました
+###### 現在は完璧に解消され、綺麗に配置されています
+#### 1234567890123456789012345
+### URLテスト
+#### https://example.com/path/to/resource/test
 ## メリット
 ### ここに25文字以上のとても長い文章を入力した場合でも綺麗に自動折り返しが行われるかテストします
-### 次のノードも長文にして上下の被りが解消されたかテストします。これでしっかり余白が保たれます。</textarea>
+#### 長文ノードの下に子供が追加された場合
+##### これでもう絶対に上のノードと衝突しません</textarea>
         <button class="btn-download" id="download-btn">画像ダウンロード</button>
     </div>
 
@@ -187,6 +202,10 @@
     const btnRestoreView = document.getElementById('btn-restore-view');
     const sidebar = document.getElementById('sidebar');
     const gridPath = document.getElementById('grid-path');
+    
+    // ボタンの要素を取得
+    const btnExpandAll = document.getElementById('btn-expand-all');
+    const btnCollapseAll = document.getElementById('btn-collapse-all');
 
     const STORAGE_KEY = 'mindmap_text_data_v4';
     let currentLayout = 'horizontal'; 
@@ -194,6 +213,7 @@
     
     let collapsedNodes = new Set();
     let globalNodeMap = new Map();
+    let rootNodeRef = null; // 一括操作用ルーツ参照ポインタ
 
     window.addEventListener('DOMContentLoaded', () => {
         if (window.innerWidth <= 768) {
@@ -305,6 +325,30 @@
         renderMap();
     });
 
+    // 一括操作ボタンのイベント処理
+    btnExpandAll.addEventListener('click', () => {
+        collapsedNodes.clear(); // 閉じているリストを全削除
+        renderMap();
+    });
+
+    btnCollapseAll.addEventListener('click', () => {
+        collapsedNodes.clear();
+        if (rootNodeRef) {
+            // ルートの子ノードから再帰的に閉じる処理を適用
+            rootNodeRef.children.forEach(child => {
+                collapseSubtreeRecursively(child);
+            });
+        }
+        renderMap();
+    });
+
+    function collapseSubtreeRecursively(node) {
+        if (node.children && node.children.length > 0) {
+            collapsedNodes.add(node.id); // 子を持つノードを閉じるリストへ登録
+            node.children.forEach(child => collapseSubtreeRecursively(child));
+        }
+    }
+
     function splitTextByLength(text, maxLength = 25) {
         const lines = [];
         for (let i = 0; i < text.length; i += maxLength) {
@@ -370,29 +414,38 @@
         return root;
     }
 
-    // 各ノードの幅と高さを「あらかじめ」確定させる一連の事前ビルド
     function precalculateSizes(node) {
         node.textLines = splitTextByLength(node.text, 25);
         const lineCount = node.textLines.length;
 
-        let maxLineChars = 0;
-        node.textLines.forEach(l => { if (l.length > maxLineChars) maxLineChars = l.length; });
-
+        let maxLineWidthCalc = 0;
         let fontSize = 14;
-        let scaleFactor = 14.5;
-        if (currentLayout === 'horizontal' && maxLineChars > 11) {
-            fontSize = maxLineChars > 18 ? 11 : 12; 
-            scaleFactor = maxLineChars > 18 ? 11.5 : 12.5;
+        let scaleFactor = 14.0; 
+
+        node.textLines.forEach(lineTxt => {
+            let currentLineWidth = 0;
+            for (let i = 0; i < lineTxt.length; i++) {
+                const code = lineTxt.charCodeAt(i);
+                if (code <= 0x007e || (0xff61 <= code && code <= 0xff9f)) {
+                    currentLineWidth += 0.52; 
+                } else {
+                    currentLineWidth += 1.0;
+                }
+            }
+            if (currentLineWidth > maxLineWidthCalc) {
+                maxLineWidthCalc = currentLineWidth;
+            }
+        });
+
+        if (node.depth === 0) {
+            fontSize = 15;
+            scaleFactor = 15.0;
         }
         node.fontSize = fontSize;
 
         if (currentLayout === 'horizontal') {
-            let widthCalc = 0;
-            const longestLine = node.textLines.reduce((a, b) => a.length > b.length ? a : b, "");
-            for (let i = 0; i < longestLine.length; i++) {
-                widthCalc += (longestLine.charCodeAt(i) <= 0x007e || (0xff61 <= longestLine.charCodeAt(i) && longestLine.charCodeAt(i) <= 0xff9f)) ? (scaleFactor/2) : scaleFactor;
-            }
-            node.width = Math.max(widthCalc + 24, 80);
+            let finalWidthCalc = maxLineWidthCalc * scaleFactor;
+            node.width = Math.max(finalWidthCalc + 24, 80);
             node.height = 20 + (lineCount * 16);
         } else {
             node.width = 170;
@@ -424,7 +477,6 @@
             node.x = startX + (node.depth * 45);
             node.y = treeYCounter;
             
-            // 動的な高さを反映して次のY位置を設定
             treeYCounter += node.height + 12;
 
             if (collapsedNodes.has(node.id)) {
@@ -448,10 +500,10 @@
     function getTreeSize(node) {
         if (node.x === -9999) return 0;
         if (collapsedNodes.has(node.id) || node.children.length === 0) {
-            // 固定値50ではなく、テキストの折り返し分を含んだ「本当の高さ + 最小余白」を返す
-            return node.height + 20;
+            return node.height + 24; 
         }
-        return calculateSubtreeSize(node.children);
+        let childrenSize = calculateSubtreeSize(node.children);
+        return Math.max(node.height + 24, childrenSize);
     }
 
     function getColorForDepth(depth) {
@@ -462,12 +514,12 @@
     function renderMap() {
         nodesGroup.innerHTML = ''; linksGroup.innerHTML = '';
         globalNodeMap.clear();
-        const rootData = parseText(textInput.value);
         
-        // 1. まず全てのノードの正確な高さを測定
+        const rootData = parseText(textInput.value);
+        rootNodeRef = rootData; // 一括ボタンから読み込めるようポインタを保持
+        
         precalculateSizes(rootData);
         
-        // 2. その測定値をもとに正確なレイアウトを配置
         treeYCounter = 60;
         calculateLayout(rootData, currentLayout === 'horizontal' ? 150 : 60, 1000);
         
@@ -498,7 +550,6 @@
                 const cX = sX + (eX - sX) / 2;
                 d = `M ${sX} ${sY} C ${cX} ${sY}, ${cX} ${eY}, ${eX} ${eY}`;
             } else {
-                // 縦展開の線ズレ修正: 親のポチ（上から12pxの位置）から、子のポチ（上から12pxの位置）へ綺麗に結ぶ
                 const sX = node.depth === 0 ? node.x + 15 : node.x - 6;
                 const sY = node.depth === 0 ? node.y + node.height : node.y + 12;
                 const eX = child.x - 6;
@@ -542,29 +593,39 @@
 
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'node-text');
-            text.setAttribute('x', node.x + rW / 2);
-            text.setAttribute('text-anchor', 'middle');
             text.setAttribute('font-family', 'sans-serif'); 
             text.setAttribute('fill', node.depth === 0 ? '#ffffff' : txtColor);
-            text.setAttribute('font-size', node.depth === 0 ? '15' : node.fontSize);
+            text.setAttribute('font-size', node.fontSize);
             if (node.depth === 0 || collapsedNodes.has(node.id)) text.setAttribute('font-weight', 'bold');
 
             const startY = node.y + (node.height / 2) - ((lineCount - 1) * 8) + 4;
             
-            node.textLines.forEach((lineTxt, idx) => {
-                const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                tspan.setAttribute('x', node.x + rW / 2);
-                tspan.setAttribute('y', startY + (idx * 16));
-                tspan.textContent = lineTxt;
-                text.appendChild(tspan);
-            });
+            if (node.depth === 0) {
+                text.setAttribute('x', node.x + rW / 2);
+                text.setAttribute('text-anchor', 'middle');
+                node.textLines.forEach((lineTxt, idx) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', node.x + rW / 2);
+                    tspan.setAttribute('y', startY + (idx * 16));
+                    tspan.textContent = lineTxt;
+                    text.appendChild(tspan);
+                });
+            } else {
+                text.setAttribute('x', node.x + 12); 
+                text.setAttribute('text-anchor', 'start');
+                node.textLines.forEach((lineTxt, idx) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', node.x + 12); 
+                    tspan.setAttribute('y', startY + (idx * 16));
+                    tspan.textContent = lineTxt;
+                    text.appendChild(tspan);
+                });
+            }
             g.appendChild(text);
 
         } else {
-            // 縦展開の一般ノード
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circle.setAttribute('cx', node.x - 6); 
-            // 長文になっても常に1行目の左横（上から12px）に固定
             circle.setAttribute('cy', node.y + 12);
             circle.setAttribute('r', collapsedNodes.has(node.id) ? '5.5' : '3.5');
             circle.setAttribute('fill', getColorForDepth(node.depth));
