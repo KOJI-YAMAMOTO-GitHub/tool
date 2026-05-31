@@ -38,10 +38,8 @@
             transition: background-color 0.3s, color 0.3s;
         }
         
-        /* 基本構造（PC向け：左右並び） */
         .container { display: flex; width: 100%; height: 100%; position: relative; flex-direction: row; }
 
-        /* 左側：サイドバー */
         .sidebar {
             width: 350px; height: 100%; background-color: var(--sidebar-bg);
             border-right: 1px solid var(--border-color); display: flex; flex-direction: column;
@@ -54,7 +52,6 @@
         .sidebar h2 { font-size: 16px; color: var(--text-color); }
         .sidebar p { font-size: 12px; color: #888; margin-bottom: 15px; line-height: 1.4; }
 
-        /* コントロール */
         .top-controls { display: flex; gap: 8px; }
         .theme-toggle, .focus-btn {
             padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer;
@@ -83,19 +80,16 @@
             font-weight: bold; font-size: 14px;
         }
 
-        /* 右側：描画エリア */
         .viewer { flex: 1; height: 100%; position: relative; overflow: auto; cursor: grab; background-color: var(--viewer-bg); }
         .viewer:active { cursor: grabbing; }
         #mindmap-svg { position: absolute; top: 0; left: 0; min-width: 4000px; min-height: 4000px; }
 
-        /* フローティング集中モード解除ボタン */
         .floating-ctrl {
             position: absolute; top: 15px; left: 15px; z-index: 20; display: none;
             padding: 8px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px;
             font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
 
-        /* 📱 スマートフォン向けメディアクエリ */
         @media (max-width: 768px) {
             .container { flex-direction: column; }
             
@@ -117,7 +111,6 @@
             .floating-ctrl { top: auto; bottom: 15px; left: 15px; }
         }
 
-        /* SVGインタラクション */
         .node-group { cursor: pointer; transition: opacity 0.2s; }
         .node-group:hover rect { filter: brightness(0.95); stroke-width: 3px; }
         [data-theme="dark"] .node-group:hover rect { filter: brightness(1.2); }
@@ -142,26 +135,27 @@
                 <button class="focus-btn" id="btn-focus-map">🗺 集中モード</button>
             </div>
         </div>
-        <p>Tabで1つ右へ、Shift+Tabで1つ左へ階層を移動できます。</p>
+        <p>マークダウン記法、または、半角スペース4つ(タブキー可)で階層分け可能</p>
         
         <div class="layout-selector">
             <button class="layout-btn active" id="btn-horizontal">横展開</button>
             <button class="layout-btn" id="btn-vertical">縦展開</button>
         </div>
 
-        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力してください...">マインドマップの作り方
-    準備するもの
-        パソコン
-            ソフトウェア
-                ブラウザについて学ぶ
-                    Google Chromeブラウザ
-                    Microsoft Edge
-        アイデア
-    基本ルール
-        中央にテーマを書く
-        関連するワードを繋ぐ
-    メリット
-        全体像が一目で綺麗に見える</textarea>
+        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力してください..."># マインドマップの作り方
+## 準備するもの
+### パソコン
+#### ソフトウェア
+##### ブラウザについて学ぶ
+###### Google Chromeブラウザ
+###### Microsoft Edge
+### アイデア
+## 基本ルール
+### 中央にテーマを書く
+### 関連するワードを繋ぐ
+## メリット
+### ここに25文字以上のとても長い文章を入力した場合でも綺麗に自動折り返しが行われるかテストします
+### 次のノードも長文にして上下の被りが解消されたかテストします。これでしっかり余白が保たれます。</textarea>
         <button class="btn-download" id="download-btn">画像ダウンロード</button>
     </div>
 
@@ -194,7 +188,7 @@
     const sidebar = document.getElementById('sidebar');
     const gridPath = document.getElementById('grid-path');
 
-    const STORAGE_KEY = 'mindmap_text_data_v3';
+    const STORAGE_KEY = 'mindmap_text_data_v4';
     let currentLayout = 'horizontal'; 
     let treeYCounter = 0;
     
@@ -219,7 +213,6 @@
         renderMap();
     });
 
-    // キーボード操作（オートインデント ＆ Tab操作）
     textInput.addEventListener('keydown', (e) => {
         const start = textInput.selectionStart;
         const end = textInput.selectionEnd;
@@ -230,9 +223,18 @@
             const lastNewLine = value.lastIndexOf('\n', start - 1);
             const lineStart = lastNewLine + 1;
             const currentLine = value.substring(lineStart, start);
-            const indentMatch = currentLine.match(/^[\s\t]*/);
-            const indent = indentMatch ? indentMatch[0] : '';
-            const insertText = '\n' + indent;
+            
+            let prefix = '';
+            
+            const mdMatch = currentLine.match(/^(#+)\s*/);
+            if (mdMatch) {
+                prefix = mdMatch[1] + ' ';
+            } else {
+                const indentMatch = currentLine.match(/^[\s\t]*/);
+                prefix = indentMatch ? indentMatch[0] : '';
+            }
+
+            const insertText = '\n' + prefix;
             textInput.value = value.substring(0, start) + insertText + value.substring(end);
             textInput.selectionStart = textInput.selectionEnd = start + insertText.length;
             localStorage.setItem(STORAGE_KEY, textInput.value);
@@ -288,6 +290,7 @@
     });
     btnRestoreView.addEventListener('click', () => {
         sidebar.classList.remove('hidden');
+        sidebar.style.display = 'flex';
         btnRestoreView.style.display = 'none';
     });
 
@@ -302,6 +305,14 @@
         renderMap();
     });
 
+    function splitTextByLength(text, maxLength = 25) {
+        const lines = [];
+        for (let i = 0; i < text.length; i += maxLength) {
+            lines.push(text.substring(i, i + maxLength));
+        }
+        return lines.length > 0 ? lines : [text];
+    }
+
     function parseText(text) {
         const lines = text.split('\n');
         const root = { id: 'root', text: 'テーマ', children: [], depth: 0, parentId: null };
@@ -309,11 +320,33 @@
         let isFirstLine = true;
         let idCounter = 0;
 
+        let minHashCount = Infinity;
+        lines.forEach(line => {
+            const mdMatch = line.match(/^(#+)\s/);
+            if (mdMatch && mdMatch[1].length < minHashCount) {
+                minHashCount = mdMatch[1].length;
+            }
+        });
+        if (minHashCount === Infinity) minHashCount = 1;
+
         lines.forEach(line => {
             if (line.trim() === '') return;
-            const indentMatch = line.match(/^[\s\t]*/);
-            const depth = indentMatch[0].replace(/\t/g, '    ').length / 4;
-            const content = line.trim();
+            
+            let depth = 0;
+            let content = line.trim();
+
+            const mdMatch = line.match(/^(#+)\s+(.*)$/);
+            if (mdMatch) {
+                depth = Math.max(0, mdMatch[1].length - minHashCount);
+                content = mdMatch[2].trim();
+            } else {
+                const indentMatch = line.match(/^[\s\t]*/);
+                depth = indentMatch[0].replace(/\t/g, '    ').length / 4;
+                if (!isFirstLine && depth === 0) {
+                    depth = 1; 
+                }
+            }
+
             idCounter++;
             const nodeId = `node_${idCounter}`;
             const node = { id: nodeId, text: content, children: [], depth: depth, parentId: null };
@@ -337,25 +370,41 @@
         return root;
     }
 
-    function calculateLayout(node, startX, startY) {
-        globalNodeMap.set(node.id, node);
+    // 各ノードの幅と高さを「あらかじめ」確定させる一連の事前ビルド
+    function precalculateSizes(node) {
+        node.textLines = splitTextByLength(node.text, 25);
+        const lineCount = node.textLines.length;
 
-        const charCount = node.text.length;
+        let maxLineChars = 0;
+        node.textLines.forEach(l => { if (l.length > maxLineChars) maxLineChars = l.length; });
+
         let fontSize = 14;
         let scaleFactor = 14.5;
-        if (currentLayout === 'horizontal' && charCount > 11) {
-            fontSize = charCount > 18 ? 11 : 12; 
-            scaleFactor = charCount > 18 ? 11.5 : 12.5;
+        if (currentLayout === 'horizontal' && maxLineChars > 11) {
+            fontSize = maxLineChars > 18 ? 11 : 12; 
+            scaleFactor = maxLineChars > 18 ? 11.5 : 12.5;
         }
         node.fontSize = fontSize;
 
         if (currentLayout === 'horizontal') {
             let widthCalc = 0;
-            for (let i = 0; i < node.text.length; i++) {
-                widthCalc += (node.text.charCodeAt(i) <= 0x007e || (0xff61 <= node.text.charCodeAt(i) && node.text.charCodeAt(i) <= 0xff9f)) ? (scaleFactor/2) : scaleFactor;
+            const longestLine = node.textLines.reduce((a, b) => a.length > b.length ? a : b, "");
+            for (let i = 0; i < longestLine.length; i++) {
+                widthCalc += (longestLine.charCodeAt(i) <= 0x007e || (0xff61 <= longestLine.charCodeAt(i) && longestLine.charCodeAt(i) <= 0xff9f)) ? (scaleFactor/2) : scaleFactor;
             }
             node.width = Math.max(widthCalc + 24, 80);
-            node.height = 35;
+            node.height = 20 + (lineCount * 16);
+        } else {
+            node.width = 170;
+            node.height = 16 + (lineCount * 16);
+        }
+        node.children.forEach(child => precalculateSizes(child));
+    }
+
+    function calculateLayout(node, startX, startY) {
+        globalNodeMap.set(node.id, node);
+
+        if (currentLayout === 'horizontal') {
             node.x = startX;
             node.y = startY - node.height / 2;
 
@@ -372,9 +421,10 @@
                 currentY += size;
             });
         } else {
-            node.width = 150; node.height = 30;
             node.x = startX + (node.depth * 45);
             node.y = treeYCounter;
+            
+            // 動的な高さを反映して次のY位置を設定
             treeYCounter += node.height + 12;
 
             if (collapsedNodes.has(node.id)) {
@@ -394,8 +444,13 @@
     function calculateSubtreeSize(children) {
         return children.reduce((acc, child) => acc + getTreeSize(child), 0);
     }
+    
     function getTreeSize(node) {
-        if (node.x === -9999 || collapsedNodes.has(node.id) || node.children.length === 0) return 50;
+        if (node.x === -9999) return 0;
+        if (collapsedNodes.has(node.id) || node.children.length === 0) {
+            // 固定値50ではなく、テキストの折り返し分を含んだ「本当の高さ + 最小余白」を返す
+            return node.height + 20;
+        }
         return calculateSubtreeSize(node.children);
     }
 
@@ -408,8 +463,14 @@
         nodesGroup.innerHTML = ''; linksGroup.innerHTML = '';
         globalNodeMap.clear();
         const rootData = parseText(textInput.value);
+        
+        // 1. まず全てのノードの正確な高さを測定
+        precalculateSizes(rootData);
+        
+        // 2. その測定値をもとに正確なレイアウトを配置
         treeYCounter = 60;
         calculateLayout(rootData, currentLayout === 'horizontal' ? 150 : 60, 1000);
+        
         drawNodeAndLinks(rootData);
     }
 
@@ -419,6 +480,7 @@
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         const txtColor = isDark ? '#e3e2e6' : '#333333';
         const rectBg = isDark ? '#2d3133' : '#ffffff';
+        const lineCount = node.textLines.length;
 
         node.children.forEach(child => {
             if (child.x === -9999) return;
@@ -436,10 +498,11 @@
                 const cX = sX + (eX - sX) / 2;
                 d = `M ${sX} ${sY} C ${cX} ${sY}, ${cX} ${eY}, ${eX} ${eY}`;
             } else {
+                // 縦展開の線ズレ修正: 親のポチ（上から12pxの位置）から、子のポチ（上から12pxの位置）へ綺麗に結ぶ
                 const sX = node.depth === 0 ? node.x + 15 : node.x - 6;
-                const sY = node.y + node.height;
+                const sY = node.depth === 0 ? node.y + node.height : node.y + 12;
                 const eX = child.x - 6;
-                const eY = child.y + child.height / 2;
+                const eY = child.y + 12;
                 d = `M ${sX} ${sY} V ${eY} H ${eX}`;
             }
             path.setAttribute('d', d);
@@ -479,17 +542,30 @@
 
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'node-text');
-            text.setAttribute('x', node.x + rW / 2); text.setAttribute('y', node.y + node.height / 2 + 5);
-            text.setAttribute('text-anchor', 'middle'); text.textContent = node.text;
+            text.setAttribute('x', node.x + rW / 2);
+            text.setAttribute('text-anchor', 'middle');
             text.setAttribute('font-family', 'sans-serif'); 
-            
             text.setAttribute('fill', node.depth === 0 ? '#ffffff' : txtColor);
             text.setAttribute('font-size', node.depth === 0 ? '15' : node.fontSize);
             if (node.depth === 0 || collapsedNodes.has(node.id)) text.setAttribute('font-weight', 'bold');
+
+            const startY = node.y + (node.height / 2) - ((lineCount - 1) * 8) + 4;
+            
+            node.textLines.forEach((lineTxt, idx) => {
+                const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                tspan.setAttribute('x', node.x + rW / 2);
+                tspan.setAttribute('y', startY + (idx * 16));
+                tspan.textContent = lineTxt;
+                text.appendChild(tspan);
+            });
             g.appendChild(text);
+
         } else {
+            // 縦展開の一般ノード
             const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            circle.setAttribute('cx', node.x - 6); circle.setAttribute('cy', node.y + node.height / 2);
+            circle.setAttribute('cx', node.x - 6); 
+            // 長文になっても常に1行目の左横（上から12px）に固定
+            circle.setAttribute('cy', node.y + 12);
             circle.setAttribute('r', collapsedNodes.has(node.id) ? '5.5' : '3.5');
             circle.setAttribute('fill', getColorForDepth(node.depth));
             if (collapsedNodes.has(node.id)) {
@@ -500,13 +576,20 @@
 
             const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
             text.setAttribute('class', 'node-text');
-            text.setAttribute('x', node.x + 8); text.setAttribute('y', node.y + node.height / 2 + 5);
-            text.setAttribute('text-anchor', 'start'); text.textContent = node.text;
+            text.setAttribute('x', node.x + 8);
+            text.setAttribute('text-anchor', 'start');
             text.setAttribute('font-family', 'sans-serif'); 
-            
             text.setAttribute('fill', txtColor);
             text.setAttribute('font-size', '14');
             if (collapsedNodes.has(node.id)) text.setAttribute('font-weight', 'bold');
+
+            node.textLines.forEach((lineTxt, idx) => {
+                const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                tspan.setAttribute('x', node.x + 8);
+                tspan.setAttribute('y', node.y + 16 + (idx * 16));
+                tspan.textContent = lineTxt;
+                text.appendChild(tspan);
+            });
             g.appendChild(text);
         }
         nodesGroup.appendChild(g);
@@ -527,7 +610,6 @@
         });
     }
 
-    // ドラッグ＆タッチスクロール
     let isDown = false, sX, sY, sL, sT;
     
     viewer.addEventListener('mousedown', (e) => {
@@ -559,8 +641,6 @@
     }, { passive: false });
     viewer.addEventListener('touchend', () => isDown = false);
 
-
-    // 画像保存（ぴったり切り出し）
     downloadBtn.addEventListener('click', () => {
         let minX = Infinity, maxX = -Infinity;
         let minY = Infinity, maxY = -Infinity;
