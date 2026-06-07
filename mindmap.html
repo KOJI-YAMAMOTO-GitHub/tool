@@ -83,7 +83,6 @@
             background-color: var(--input-bg); color: var(--text-color);
         }
 
-        /* 下部ボタンエリアのスタイル調整 */
         .bottom-controls { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
         .btn-action {
             width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer;
@@ -133,6 +132,13 @@
         .node-group:hover circle { r: 5.5; filter: brightness(1.2); }
         .node-text { user-select: none; transition: font-size 0.2s; }
         
+        /* コピー成功時のフラッシュアニメーション */
+        @keyframes copy-flash {
+            0% { filter: drop-shadow(0px 0px 12px #2ec4b6); opacity: 0.7; }
+            100% { filter: none; opacity: 1; }
+        }
+        .copy-success-flash { animation: copy-flash 0.4s ease-out; }
+
         .link-path { transition: stroke-width 0.2s, stroke 0.2s; }
         .link-path.highlight { stroke-width: 4px !important; filter: drop-shadow(0px 0px 3px rgba(74,144,226,0.5)); }
         .node-group.highlight text { fill: #4a90e2 !important; font-weight: bold; }
@@ -347,7 +353,6 @@
         renderMap();
     });
 
-    // 【新機能】コピーボタンの処理
     copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(textInput.value).then(() => {
             const originalText = copyBtn.textContent;
@@ -461,7 +466,7 @@
             for (let i = 0; i < lineTxt.length; i++) {
                 const code = lineTxt.charCodeAt(i);
                 if (code <= 0x007e || (0xff61 <= code && code <= 0xff9f)) {
-                    currentLineWidth += 0.53; // 実測値をさらに少し微増
+                    currentLineWidth += 0.53; 
                 } else {
                     currentLineWidth += 1.0;
                 }
@@ -478,7 +483,6 @@
         node.fontSize = fontSize;
 
         if (currentLayout === 'horizontal') {
-            // 【修正】計算された文字幅に対して一律1.2倍（20%の安全バッファ）を掛け合わせる
             let finalWidthCalc = (maxLineWidthCalc * scaleFactor) * 1.2;
             node.width = Math.max(finalWidthCalc + 24, 80);
             node.height = 20 + (lineCount * 16);
@@ -602,7 +606,17 @@
 
         g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
         g.addEventListener('mouseleave', () => highlightBranch(node.id, false));
+        
+        // 【アップデート】ノードクリック時に文字コピー＆開閉制御を実行
         g.addEventListener('click', (e) => {
+            // 1. クリップボードへコピー処理
+            navigator.clipboard.writeText(node.text).then(() => {
+                // 視覚フィードバック：エフェクト用のクラスを一瞬付与
+                g.classList.add('copy-success-flash');
+                setTimeout(() => g.classList.remove('copy-success-flash'), 400);
+            }).catch(err => console.error('コピー失敗:', err));
+
+            // 2. 従来の子ノード開閉処理
             if (node.children.length > 0) {
                 if (collapsedNodes.has(node.id)) {
                     collapsedNodes.delete(node.id);
