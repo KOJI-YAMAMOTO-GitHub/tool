@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>オフラインマインドマップ（共有・配布対応版）</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>オフラインマインドマップ（セキュリティ重視版）</title>
     <style>
         :root {
             --bg-color: #f5f7fa;
@@ -94,24 +94,19 @@
         }
         .btn-copy { background-color: #2ec4b6; color: white; }
         .btn-copy:hover { background-color: #25a195; }
-        .btn-share-url { background-color: #9b59b6; color: white; }
-        .btn-share-url:hover { background-color: #8e44ad; }
         .btn-download { background-color: #4a90e2; color: white; }
         .btn-download:hover { background-color: #357abd; }
         .btn-html { background-color: #f7a072; color: white; }
         .btn-html:hover { background-color: #e58f64; }
 
-        /* ビューワー全体の定義 */
         .viewer { flex: 1; height: 100%; display: flex; flex-direction: column; background-color: var(--viewer-bg); position: relative; overflow: hidden; }
         
-        /* 上部のズームコントロール専用ヘッダー領域 */
         .viewer-header {
             width: 100%; height: 50px; background-color: var(--header-bg);
             border-bottom: 1px solid var(--border-color); display: flex; align-items: center;
             padding: 0 15px; gap: 15px; z-index: 30; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
 
-        /* ヘッダー内のコントロール配置 */
         .zoom-controls {
             display: flex; align-items: center; background: var(--input-bg); 
             border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; height: 34px;
@@ -130,32 +125,15 @@
         }
         .zoom-text:hover { background-color: rgba(74,144,226,0.05); }
 
-        /* エディタ表示復帰ボタン */
         .floating-ctrl {
             display: none; padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px;
             font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 12px; height: 34px;
         }
         .floating-ctrl:hover { opacity: 0.9; }
 
-        /* スクロール可能なマップ描画本体の領域 */
         .map-area { flex: 1; width: 100%; overflow: auto; position: relative; cursor: grab; }
         .map-area:active { cursor: grabbing; }
-        /* 【改善】JS側からコンテンツ量に応じて動的に伸縮させるため、固定最小サイズを撤廃 */
         #mindmap-svg { position: absolute; top: 0; left: 0; width: 4000px; height: 4000px; }
-
-        body.view-only-mode .sidebar { display: none !important; }
-        body.view-only-mode .floating-ctrl { display: none !important; }
-        body.view-only-mode .export-theme-btn { display: block !important; }
-
-        .export-theme-btn {
-            position: absolute; top: 10px; right: 15px; z-index: 100;
-            padding: 6px 14px; font-size: 12px; font-weight: bold; cursor: pointer;
-            border: 1px solid var(--border-color); border-radius: 20px;
-            background: var(--sidebar-bg); color: var(--text-color);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: opacity 0.2s;
-            display: none; height: 30px;
-        }
-        .export-theme-btn:hover { opacity: 0.9; }
 
         @media (max-width: 768px) {
             .container { flex-direction: column; }
@@ -198,8 +176,6 @@
 <body>
 
 <div class="container">
-    <button class="export-theme-btn" id="view-mode-theme-toggle">🌙 テーマ変更</button>
-
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h2 id="sidebar-title">オフラインマインドマップ</h2>
@@ -233,19 +209,15 @@
 ##### これでもう絶対に上のノードと衝突しません</textarea>
         
         <div class="bottom-controls">
+            <button class="btn-action btn-copy" id="copy-btn">📋 テキストデータをコピー</button>
             <div class="btn-row">
-                <button class="btn-action btn-copy" id="copy-btn">📋 テキストコピー</button>
-                <button class="btn-action btn-share-url" id="share-url-btn">🔗 共有用URL</button>
-            </div>
-            <div class="btn-row">
-                <button class="btn-action btn-download" id="download-btn">PNG画像</button>
-                <button class="btn-action btn-html" id="download-html-btn">📄 配布用HTML</button>
+                <button class="btn-action btn-download" id="download-btn">PNG画像として保存</button>
+                <button class="btn-action btn-html" id="download-html-btn">📄 配布用HTMLを出力</button>
             </div>
         </div>
     </div>
 
     <div class="viewer" id="viewer">
-        
         <div class="viewer-header" id="viewer-header-bar">
             <button class="floating-ctrl" id="btn-restore-view">← エディタを表示する</button>
             
@@ -270,7 +242,6 @@
                 </g>
             </svg>
         </div>
-
     </div>
 </div>
 
@@ -284,12 +255,10 @@
     const mapArea = document.getElementById('map-area');
     const downloadBtn = document.getElementById('download-btn');
     const downloadHtmlBtn = document.getElementById('download-html-btn');
-    const shareUrlBtn = document.getElementById('share-url-btn');
     const copyBtn = document.getElementById('copy-btn');
     const btnHorizontal = document.getElementById('btn-horizontal');
     const btnVertical = document.getElementById('btn-vertical');
     const themeToggle = document.getElementById('theme-toggle');
-    const viewModeThemeToggle = document.getElementById('view-mode-theme-toggle');
     const btnFocusMap = document.getElementById('btn-focus-map');
     const btnRestoreView = document.getElementById('btn-restore-view');
     const sidebar = document.getElementById('sidebar');
@@ -298,7 +267,6 @@
     const btnExpandAll = document.getElementById('btn-expand-all');
     const btnCollapseAll = document.getElementById('btn-collapse-all');
 
-    // ズーム・ヘッダー用のDOM
     const viewerHeaderBar = document.getElementById('viewer-header-bar');
     const zoomControlsContainer = document.getElementById('zoom-controls-container');
     const zoomInBtn = document.getElementById('zoom-in');
@@ -312,61 +280,29 @@
     let collapsedNodes = new Set();
     let globalNodeMap = new Map();
     let rootNodeRef = null;
-    let isViewOnly = false;
-    let viewOnlyTextData = "";
 
     let zoomScale = 1.0;
     const MIN_ZOOM = 0.2;
     const MAX_ZOOM = 3.0;
 
+    let isPinching = false;
+    let startTouchDistance = 0;
+    let startZoomScale = 1.0;
+
     window.addEventListener('DOMContentLoaded', () => {
-        const hash = window.location.hash;
-        if (hash && hash.startsWith('#data=')) {
-            try {
-                isViewOnly = true;
-                document.body.classList.add('view-only-mode');
-                const base64Data = hash.substring(6);
-                viewOnlyTextData = decodeURIComponent(atob(base64Data));
-            } catch (e) {
-                console.error("URLデータのパースに失敗しました", e);
-                isViewOnly = false;
-            }
-        }
+        const savedText = localStorage.getItem(STORAGE_KEY);
+        if (savedText) textInput.value = savedText;
+        
+        const savedTheme = localStorage.getItem('mindmap_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.textContent = savedTheme === 'dark' ? '☀️ ライトモード' : '🌙 ダークモード';
+        updateGridColor(savedTheme);
 
-        if (isViewOnly) {
-            const savedTheme = localStorage.getItem('mindmap_theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            renderMap();
-            setTimeout(focusRootNode, 50);
-        } else {
-            const savedText = localStorage.getItem(STORAGE_KEY);
-            if (savedText) textInput.value = savedText;
-            
-            const savedTheme = localStorage.getItem('mindmap_theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-            themeToggle.textContent = savedTheme === 'dark' ? '☀️ ライトモード' : '🌙 ダークモード';
-            updateGridColor(savedTheme);
-
-            renderMap();
-            setTimeout(focusRootNode, 50);
-        }
-    });
-
-    viewModeThemeToggle.addEventListener('click', () => {
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const nextTheme = isDark ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', nextTheme);
-        localStorage.setItem('mindmap_theme', nextTheme);
-        updateGridColor(nextTheme);
         renderMap();
+        setTimeout(focusRootNode, 50);
     });
-
-    function getActiveText() {
-        return isViewOnly ? viewOnlyTextData : textInput.value;
-    }
 
     textInput.addEventListener('keydown', (e) => {
-        if (isViewOnly) return;
         const start = textInput.selectionStart;
         const end = textInput.selectionEnd;
         const value = textInput.value;
@@ -478,24 +414,10 @@
     });
 
     copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(getActiveText()).then(() => {
+        navigator.clipboard.writeText(textInput.value).then(() => {
             const originalText = copyBtn.textContent;
             copyBtn.textContent = '✅ コピー成功！';
             setTimeout(() => { copyBtn.textContent = originalText; }, 1500);
-        });
-    });
-
-    shareUrlBtn.addEventListener('click', () => {
-        const textData = textInput.value;
-        const base64Data = btoa(encodeURIComponent(textData));
-        const shareUrl = window.location.origin + window.location.pathname + '#data=' + base64Data;
-        
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            const originalText = shareUrlBtn.textContent;
-            shareUrlBtn.textContent = '✅ URLコピー完了！';
-            setTimeout(() => { shareUrlBtn.textContent = originalText; }, 1500);
-        }).catch(err => {
-            alert("URLのコピーに失敗しました。");
         });
     });
 
@@ -503,7 +425,6 @@
         if (!rootNodeRef) return;
         
         if (currentLayout === 'horizontal') {
-            // 【改善】シフト補正後の正確な座標に合わせてスクロールセンターを調整
             mapArea.scrollLeft = rootNodeRef.x - 50;
             mapArea.scrollTop = (rootNodeRef.y + rootNodeRef.height / 2) - (mapArea.clientHeight / 2);
         } else {
@@ -624,7 +545,6 @@
         node.children.forEach(child => precalculateSizes(child));
     }
 
-    // 計算用テンポラリ関数
     function calculateLayoutInitial(node, startX, startY) {
         globalNodeMap.set(node.id, node);
 
@@ -657,7 +577,6 @@
         }
     }
 
-    // 【改善】全ノードの配置を再帰的にY座標補正する関数
     function shiftAllNodesY(node, deltaY) {
         if (node.x !== -9999) {
             node.y += deltaY;
@@ -708,16 +627,14 @@
         nodesGroup.innerHTML = ''; linksGroup.innerHTML = '';
         globalNodeMap.clear();
         
-        const rootData = parseText(getActiveText());
+        const rootData = parseText(textInput.value);
         rootNodeRef = rootData; 
         
         precalculateSizes(rootData);
         
-        // 【改善】仮の初期中心点で一度全配置をモデリング
         treeYCounter = 60;
         calculateLayoutInitial(rootData, currentLayout === 'horizontal' ? 150 : 60, 2000);
         
-        // 【改善】横展開での見切れを防ぐ境界チェックと座標調整
         if (currentLayout === 'horizontal') {
             let minY = Infinity;
             let maxY = -Infinity;
@@ -730,7 +647,6 @@
                 if (node.x + node.width > maxX) maxX = node.x + node.width;
             });
 
-            // 最上部がy=0未満にならないよう、安全マージン（80px）を持って全ノードをプラス方向にシフト
             const topMargin = 80;
             if (minY < topMargin) {
                 const correction = topMargin - minY;
@@ -739,14 +655,12 @@
                 maxY += correction;
             }
 
-            // コンテンツの総量に応じ、SVGキャンバスのエリアサイズを動的に拡張
             const padding = 200;
             const requiredWidth = Math.max(4000, maxX + padding);
             const requiredHeight = Math.max(4000, maxY + padding);
             svg.style.width = requiredWidth + 'px';
             svg.style.height = requiredHeight + 'px';
         } else {
-            // 縦展開時はデフォルト固定サイズ
             svg.style.width = '4000px';
             svg.style.height = '4000px';
         }
@@ -808,15 +722,92 @@
         g.setAttribute('class', 'node-group');
         g.setAttribute('id', `g-${node.id}`);
 
-        g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
+g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
         g.addEventListener('mouseleave', () => highlightBranch(node.id, false));
         
+        let holdTimer = null;
+        let isLongAction = false;
+        const HOLD_DURATION = 1200; // 【改良】長押し判定を1.2秒に延長して誤爆を防止
+
+        const triggerLongAction = () => {
+            // 長押し成功時にスマホ等で軽くバイブレーションフィードバック（対応端末のみ）
+            if (navigator.vibrate) {
+                navigator.vibrate(40); 
+            }
+            
+            const rawText = node.text.trim();
+            if (/^https?:\/\/[^\s]+$/i.test(rawText)) {
+                window.open(rawText, '_blank');
+            } else {
+                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(rawText)}`;
+                window.open(searchUrl, '_blank');
+            }
+        };
+
+        // --- スマートフォン等でのタッチ操作 ---
+        g.addEventListener('touchstart', (e) => {
+            if (isPinching) return;
+            isLongAction = false;
+            
+            holdTimer = setTimeout(() => {
+                isLongAction = true;
+                triggerLongAction();
+            }, HOLD_DURATION);
+        }, { passive: true });
+
+        g.addEventListener('touchmove', () => {
+            // 指が動いたら長押しタイマーをキャンセル（スクロール時などの誤爆を防ぐ）
+            clearTimeout(holdTimer);
+        });
+
+        g.addEventListener('touchend', (e) => {
+            clearTimeout(holdTimer);
+            if (isLongAction) {
+                e.preventDefault();
+                return;
+            }
+        });
+
+        // --- パソコンでのマウス操作 ---
+        g.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // 左クリックのみ対象
+            isDown = false; // マップ移動のドラッグと競合させない
+            isLongAction = false;
+
+            holdTimer = setTimeout(() => {
+                isLongAction = true;
+                triggerLongAction();
+            }, HOLD_DURATION);
+        });
+
+        g.addEventListener('mousemove', () => {
+            // マウスが動いたら長押しをキャンセル（文字選択やドラッグ操作を優先）
+            clearTimeout(holdTimer);
+        });
+
+        g.addEventListener('mouseup', () => {
+            clearTimeout(holdTimer);
+        });
+
+        g.addEventListener('mouseleave', () => {
+            clearTimeout(holdTimer);
+        });
+
         g.addEventListener('click', (e) => {
+            // 長押しが成立していた場合は、通常のクリック処理（クリップボードコピー）を行わない
+            if (isLongAction || isPinching) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+
+            // 通常のクリック：クリップボードへ文字をコピー
             navigator.clipboard.writeText(node.text).then(() => {
                 g.classList.add('copy-success-flash');
                 setTimeout(() => g.classList.remove('copy-success-flash'), 400);
             }).catch(err => console.error('コピー失敗:', err));
 
+            // 子ノードの開閉処理
             if (node.children.length > 0) {
                 if (collapsedNodes.has(node.id)) {
                     collapsedNodes.delete(node.id);
@@ -920,6 +911,10 @@
         });
     }
 
+    function getDistance(t1, t2) {
+        return Math.sqrt(Math.pow(t1.pageX - t2.pageX, 2) + Math.pow(t1.pageY - t2.pageY, 2));
+    }
+
     let isDown = false, sX, sY, sL, sT;
     
     mapArea.addEventListener('mousedown', (e) => {
@@ -936,24 +931,58 @@
     mapArea.addEventListener('mouseup', () => isDown = false);
 
     mapArea.addEventListener('touchstart', (e) => {
-        if (e.target.tagName === 'svg' || e.target.id === 'mindmap-svg' || e.target.getAttribute('fill') === 'url(#grid)') {
-            isDown = true;
-            sX = e.touches[0].pageX - mapArea.offsetLeft;
-            sY = e.touches[0].pageY - mapArea.offsetTop;
-            sL = mapArea.scrollLeft; sT = mapArea.scrollTop;
+        if (e.touches.length === 2 && currentLayout === 'horizontal') {
+            isPinching = true;
+            isDown = false;
+            startTouchDistance = getDistance(e.touches[0], e.touches[1]);
+            startZoomScale = zoomScale;
+        } else if (e.touches.length === 1) {
+            isPinching = false;
+            if (e.target.tagName === 'svg' || e.target.id === 'mindmap-svg' || e.target.getAttribute('fill') === 'url(#grid)') {
+                isDown = true;
+                sX = e.touches[0].pageX - mapArea.offsetLeft;
+                sY = e.touches[0].pageY - mapArea.offsetTop;
+                sL = mapArea.scrollLeft; sT = mapArea.scrollTop;
+            }
         }
     });
-    mapArea.addEventListener('touchmove', (e) => {
-        if (!isDown) return;
-        e.preventDefault(); 
-        mapArea.scrollLeft = sL - (e.touches[0].pageX - mapArea.offsetLeft - sX);
-        mapArea.scrollTop = sT - (e.touches[0].pageY - mapArea.offsetTop - sY);
-    }, { passive: false });
-    mapArea.addEventListener('touchend', () => isDown = false);
 
-    mapArea.addEventListener('wheel', (e) => {
-        // ズーム変更処理を削除したため、通常の画面スクロール（閲覧移動）のみが有効になります
-    }, { passive: true });
+    mapArea.addEventListener('touchmove', (e) => {
+        if (isPinching && e.touches.length === 2 && currentLayout === 'horizontal') {
+            e.preventDefault();
+            const currentDistance = getDistance(e.touches[0], e.touches[1]);
+            if (startTouchDistance <= 0) return;
+
+            const factor = currentDistance / startTouchDistance;
+            let nextScale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, startZoomScale * factor));
+            
+            if (nextScale !== zoomScale) {
+                const midTouchX = (e.touches[0].pageX + e.touches[1].pageX) / 2 - mapArea.offsetLeft;
+                const midTouchY = (e.touches[0].pageY + e.touches[1].pageY) / 2 - mapArea.offsetTop;
+
+                const svgDocX = midTouchX + mapArea.scrollLeft;
+                const svgDocY = midTouchY + mapArea.scrollTop;
+
+                const ratio = nextScale / zoomScale;
+                zoomScale = nextScale;
+                applyZoom();
+
+                mapArea.scrollLeft = svgDocX * ratio - midTouchX;
+                mapArea.scrollTop = svgDocY * ratio - midTouchY;
+            }
+        } else if (isDown && e.touches.length === 1) {
+            e.preventDefault(); 
+            mapArea.scrollLeft = sL - (e.touches[0].pageX - mapArea.offsetLeft - sX);
+            mapArea.scrollTop = sT - (e.touches[0].pageY - mapArea.offsetTop - sY);
+        }
+    }, { passive: false });
+
+    mapArea.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2) {
+            setTimeout(() => { isPinching = false; }, 100);
+        }
+        isDown = false;
+    });
 
     zoomInBtn.addEventListener('click', () => {
         if (currentLayout !== 'horizontal') return;
