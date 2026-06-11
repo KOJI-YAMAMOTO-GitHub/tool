@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>オフラインマインドマップ</title>
+    <title>オフラインマインドマップ（共有・配布対応版）</title>
     <style>
         :root {
             --bg-color: #f5f7fa;
@@ -15,6 +15,7 @@
             --grid-color: #eef0f2;
             --viewer-bg: #f8f9fa;
             --node-rect-bg: #ffffff;
+            --header-bg: #ffffff;
         }
 
         [data-theme="dark"] {
@@ -27,6 +28,7 @@
             --grid-color: #2d3133;
             --viewer-bg: #141416;
             --node-rect-bg: #2d3133;
+            --header-bg: #25282a;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -84,33 +86,79 @@
         }
 
         .bottom-controls { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
+        .btn-row { display: flex; gap: 8px; }
+        .btn-row .btn-action { flex: 1; }
         .btn-action {
             width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer;
-            font-weight: bold; font-size: 14px; text-align: center; transition: background-color 0.2s, opacity 0.2s;
+            font-weight: bold; font-size: 13px; text-align: center; transition: background-color 0.2s, opacity 0.2s;
         }
         .btn-copy { background-color: #2ec4b6; color: white; }
         .btn-copy:hover { background-color: #25a195; }
+        .btn-share-url { background-color: #9b59b6; color: white; }
+        .btn-share-url:hover { background-color: #8e44ad; }
         .btn-download { background-color: #4a90e2; color: white; }
         .btn-download:hover { background-color: #357abd; }
+        .btn-html { background-color: #f7a072; color: white; }
+        .btn-html:hover { background-color: #e58f64; }
 
-        .viewer { flex: 1; height: 100%; position: relative; overflow: auto; cursor: grab; background-color: var(--viewer-bg); }
-        .viewer:active { cursor: grabbing; }
+        /* ビューワー全体の定義 */
+        .viewer { flex: 1; height: 100%; display: flex; flex-direction: column; background-color: var(--viewer-bg); position: relative; overflow: hidden; }
+        
+        /* 上部のズームコントロール専用ヘッダー領域 */
+        .viewer-header {
+            width: 100%; height: 50px; background-color: var(--header-bg);
+            border-bottom: 1px solid var(--border-color); display: flex; align-items: center;
+            padding: 0 15px; gap: 15px; z-index: 30; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* ヘッダー内のコントロール配置 */
+        .zoom-controls {
+            display: flex; align-items: center; background: var(--input-bg); 
+            border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; height: 34px;
+        }
+        
+        .zoom-btn {
+            padding: 0 14px; height: 100%; background: none; border: none; font-size: 14px; font-weight: bold;
+            color: var(--text-color); cursor: pointer; transition: background-color 0.2s; display: flex; align-items: center;
+        }
+        .zoom-btn:hover { background-color: rgba(74,144,226,0.1); }
+        .zoom-text {
+            padding: 0 12px; height: 100%; font-size: 13px; font-weight: bold; color: var(--text-color);
+            display: flex; align-items: center; justify-content: center; min-width: 65px;
+            border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);
+            background: var(--sidebar-bg); cursor: pointer; user-select: none;
+        }
+        .zoom-text:hover { background-color: rgba(74,144,226,0.05); }
+
+        /* エディタ表示復帰ボタン */
+        .floating-ctrl {
+            display: none; padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px;
+            font-weight: bold; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 12px; height: 34px;
+        }
+        .floating-ctrl:hover { opacity: 0.9; }
+
+        /* スクロール可能なマップ描画本体の領域 */
+        .map-area { flex: 1; width: 100%; overflow: auto; position: relative; cursor: grab; }
+        .map-area:active { cursor: grabbing; }
         #mindmap-svg { position: absolute; top: 0; left: 0; min-width: 4000px; min-height: 4000px; }
 
-        .floating-ctrl {
-            position: absolute; top: 15px; left: 15px; z-index: 20; display: none;
-            padding: 8px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px;
-            font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        body.view-only-mode .sidebar { display: none !important; }
+        body.view-only-mode .floating-ctrl { display: none !important; }
+        body.view-only-mode .export-theme-btn { display: block !important; }
+
+        .export-theme-btn {
+            position: absolute; top: 10px; right: 15px; z-index: 100;
+            padding: 6px 14px; font-size: 12px; font-weight: bold; cursor: pointer;
+            border: 1px solid var(--border-color); border-radius: 20px;
+            background: var(--sidebar-bg); color: var(--text-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: opacity 0.2s;
+            display: none; height: 30px;
         }
+        .export-theme-btn:hover { opacity: 0.9; }
 
         @media (max-width: 768px) {
             .container { flex-direction: column; }
-            
-            .sidebar {
-                width: 100%; height: 48%;
-                border-right: none; border-bottom: 1px solid var(--border-color);
-                padding: 10px;
-            }
+            .sidebar { width: 100%; height: 48%; border-right: none; border-bottom: 1px solid var(--border-color); padding: 10px; }
             .sidebar p { display: none; }
             .sidebar h2 { font-size: 14px; }
             .sidebar-header { margin-bottom: 8px; }
@@ -120,19 +168,21 @@
             textarea { font-size: 13px; }
             .bottom-controls { margin-top: 8px; gap: 6px; }
             .btn-action { padding: 6px; font-size: 12px; }
-
             .sidebar.hidden { transform: translateY(-100%); height: 0; padding: 0; }
             .viewer { width: 100%; height: 52%; }
-            .floating-ctrl { top: auto; bottom: 15px; left: 15px; }
+            .viewer-header { height: 44px; padding: 0 10px; gap: 8px; }
+            .zoom-controls { height: 28px; }
+            .zoom-btn { padding: 0 8px; font-size: 12px; }
+            .zoom-text { min-width: 50px; font-size: 11px; padding: 0 6px; }
+            .floating-ctrl { height: 28px; font-size: 11px; padding: 0 8px; }
         }
 
         .node-group { cursor: pointer; transition: opacity 0.2s; }
         .node-group:hover rect { filter: brightness(0.95); stroke-width: 3px; }
         [data-theme="dark"] .node-group:hover rect { filter: brightness(1.2); }
         .node-group:hover circle { r: 5.5; filter: brightness(1.2); }
-        .node-text { user-select: none; transition: font-size 0.2s; }
+        .node-text { user-select: text; transition: font-size 0.2s; }
         
-        /* コピー成功時のフラッシュアニメーション */
         @keyframes copy-flash {
             0% { filter: drop-shadow(0px 0px 12px #2ec4b6); opacity: 0.7; }
             100% { filter: none; opacity: 1; }
@@ -147,7 +197,7 @@
 <body>
 
 <div class="container">
-    <button class="floating-ctrl" id="btn-restore-view">← エディタを表示する</button>
+    <button class="export-theme-btn" id="view-mode-theme-toggle">🌙 テーマ変更</button>
 
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -173,9 +223,6 @@
 ## 準備するもの
 ### パソコン
 #### abcdefghijklmnopqrstuvwxyz
-##### この半角ノードに子ノードを追加したときに
-###### 上のノードと被ってしまうバグが発生していました
-###### 現在は完璧に解消され、綺麗に配置されています
 #### 1234567890123456789012345
 ### URLテスト
 #### https://example.com/path/to/resource/test
@@ -185,36 +232,63 @@
 ##### これでもう絶対に上のノードと衝突しません</textarea>
         
         <div class="bottom-controls">
-            <button class="btn-action btn-copy" id="copy-btn">📋 テキストをコピー</button>
-            <button class="btn-action btn-download" id="download-btn">画像ダウンロード</button>
+            <div class="btn-row">
+                <button class="btn-action btn-copy" id="copy-btn">📋 テキストコピー</button>
+                <button class="btn-action btn-share-url" id="share-url-btn">🔗 共有用URL</button>
+            </div>
+            <div class="btn-row">
+                <button class="btn-action btn-download" id="download-btn">PNG画像</button>
+                <button class="btn-action btn-html" id="download-html-btn">📄 配布用HTML</button>
+            </div>
         </div>
     </div>
 
     <div class="viewer" id="viewer">
-        <svg id="mindmap-svg">
-            <defs>
-                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                    <path id="grid-path" d="M 40 0 L 0 0 0 40" fill="none" stroke="#eef0f2" stroke-width="1"/>
-                </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#grid)" />
-            <g id="links-group"></g>
-            <g id="nodes-group"></g>
-        </svg>
+        
+        <div class="viewer-header" id="viewer-header-bar">
+            <button class="floating-ctrl" id="btn-restore-view">← エディタを表示する</button>
+            
+            <div class="zoom-controls" id="zoom-controls-container">
+                <button class="zoom-btn" id="zoom-in" title="拡大">＋</button>
+                <div class="zoom-text" id="zoom-reset" title="100%に戻す">100%</div>
+                <button class="zoom-btn" id="zoom-out" title="縮小">－</button>
+            </div>
+        </div>
+
+        <div class="map-area" id="map-area">
+            <svg id="mindmap-svg">
+                <defs>
+                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path id="grid-path" d="M 40 0 L 0 0 0 40" fill="none" stroke="#eef0f2" stroke-width="1"/>
+                    </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+                <g id="zoom-group">
+                    <g id="links-group"></g>
+                    <g id="nodes-group"></g>
+                </g>
+            </svg>
+        </div>
+
     </div>
 </div>
 
 <script>
     const textInput = document.getElementById('text-input');
     const svg = document.getElementById('mindmap-svg');
+    const zoomGroup = document.getElementById('zoom-group');
     const nodesGroup = document.getElementById('nodes-group');
     const linksGroup = document.getElementById('links-group');
     const viewer = document.getElementById('viewer');
+    const mapArea = document.getElementById('map-area');
     const downloadBtn = document.getElementById('download-btn');
+    const downloadHtmlBtn = document.getElementById('download-html-btn');
+    const shareUrlBtn = document.getElementById('share-url-btn');
     const copyBtn = document.getElementById('copy-btn');
     const btnHorizontal = document.getElementById('btn-horizontal');
     const btnVertical = document.getElementById('btn-vertical');
     const themeToggle = document.getElementById('theme-toggle');
+    const viewModeThemeToggle = document.getElementById('view-mode-theme-toggle');
     const btnFocusMap = document.getElementById('btn-focus-map');
     const btnRestoreView = document.getElementById('btn-restore-view');
     const sidebar = document.getElementById('sidebar');
@@ -223,6 +297,13 @@
     const btnExpandAll = document.getElementById('btn-expand-all');
     const btnCollapseAll = document.getElementById('btn-collapse-all');
 
+    // ズーム・ヘッダー用のDOM
+    const viewerHeaderBar = document.getElementById('viewer-header-bar');
+    const zoomControlsContainer = document.getElementById('zoom-controls-container');
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomResetBtn = document.getElementById('zoom-reset');
+
     const STORAGE_KEY = 'mindmap_text_data_v4';
     let currentLayout = 'horizontal'; 
     let treeYCounter = 0;
@@ -230,21 +311,61 @@
     let collapsedNodes = new Set();
     let globalNodeMap = new Map();
     let rootNodeRef = null;
+    let isViewOnly = false;
+    let viewOnlyTextData = "";
+
+    let zoomScale = 1.0;
+    const MIN_ZOOM = 0.2;
+    const MAX_ZOOM = 3.0;
 
     window.addEventListener('DOMContentLoaded', () => {
-        const savedText = localStorage.getItem(STORAGE_KEY);
-        if (savedText) textInput.value = savedText;
-        
-        const savedTheme = localStorage.getItem('mindmap_theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        themeToggle.textContent = savedTheme === 'dark' ? '☀️ ライトモード' : '🌙 ダークモード';
-        updateGridColor(savedTheme);
+        const hash = window.location.hash;
+        if (hash && hash.startsWith('#data=')) {
+            try {
+                isViewOnly = true;
+                document.body.classList.add('view-only-mode');
+                const base64Data = hash.substring(6);
+                viewOnlyTextData = decodeURIComponent(atob(base64Data));
+            } catch (e) {
+                console.error("URLデータのパースに失敗しました", e);
+                isViewOnly = false;
+            }
+        }
 
-        renderMap();
-        setTimeout(focusRootNode, 50);
+        if (isViewOnly) {
+            const savedTheme = localStorage.getItem('mindmap_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            renderMap();
+            setTimeout(focusRootNode, 50);
+        } else {
+            const savedText = localStorage.getItem(STORAGE_KEY);
+            if (savedText) textInput.value = savedText;
+            
+            const savedTheme = localStorage.getItem('mindmap_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            themeToggle.textContent = savedTheme === 'dark' ? '☀️ ライトモード' : '🌙 ダークモード';
+            updateGridColor(savedTheme);
+
+            renderMap();
+            setTimeout(focusRootNode, 50);
+        }
     });
 
+    viewModeThemeToggle.addEventListener('click', () => {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const nextTheme = isDark ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('mindmap_theme', nextTheme);
+        updateGridColor(nextTheme);
+        renderMap();
+    });
+
+    function getActiveText() {
+        return isViewOnly ? viewOnlyTextData : textInput.value;
+    }
+
     textInput.addEventListener('keydown', (e) => {
+        if (isViewOnly) return;
         const start = textInput.selectionStart;
         const end = textInput.selectionEnd;
         const value = textInput.value;
@@ -256,7 +377,6 @@
             const currentLine = value.substring(lineStart, start);
             
             let prefix = '';
-            
             const mdMatch = currentLine.match(/^(#+)\s*/);
             if (mdMatch) {
                 prefix = mdMatch[1] + ' ';
@@ -302,7 +422,9 @@
     });
 
     function updateGridColor(theme) {
-        gridPath.setAttribute('stroke', theme === 'dark' ? '#2d3133' : '#eef0f2');
+        if(gridPath) {
+            gridPath.setAttribute('stroke', theme === 'dark' ? '#2d3133' : '#eef0f2');
+        }
     }
 
     themeToggle.addEventListener('click', () => {
@@ -334,6 +456,7 @@
     btnVertical.addEventListener('click', () => {
         currentLayout = 'vertical';
         btnVertical.classList.add('active'); btnHorizontal.classList.remove('active');
+        zoomScale = 1.0;
         renderMap();
         focusRootNode();
     });
@@ -354,16 +477,24 @@
     });
 
     copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(textInput.value).then(() => {
+        navigator.clipboard.writeText(getActiveText()).then(() => {
             const originalText = copyBtn.textContent;
-            copyBtn.textContent = '✅ コピーされました！';
-            copyBtn.style.opacity = '0.8';
-            setTimeout(() => {
-                copyBtn.textContent = originalText;
-                copyBtn.style.opacity = '1';
-            }, 1500);
+            copyBtn.textContent = '✅ コピー成功！';
+            setTimeout(() => { copyBtn.textContent = originalText; }, 1500);
+        });
+    });
+
+    shareUrlBtn.addEventListener('click', () => {
+        const textData = textInput.value;
+        const base64Data = btoa(encodeURIComponent(textData));
+        const shareUrl = window.location.origin + window.location.pathname + '#data=' + base64Data;
+        
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            const originalText = shareUrlBtn.textContent;
+            shareUrlBtn.textContent = '✅ URLコピー完了！';
+            setTimeout(() => { shareUrlBtn.textContent = originalText; }, 1500);
         }).catch(err => {
-            console.error('コピー失敗しました: ', err);
+            alert("URLのコピーに失敗しました。");
         });
     });
 
@@ -373,11 +504,11 @@
         const targetY = 1000;
         
         if (currentLayout === 'horizontal') {
-            viewer.scrollLeft = targetX - 50;
-            viewer.scrollTop = targetY - (viewer.clientHeight / 2);
+            mapArea.scrollLeft = targetX - 50;
+            mapArea.scrollTop = targetY - (mapArea.clientHeight / 2);
         } else {
-            viewer.scrollLeft = targetX - 50;
-            viewer.scrollTop = 40;
+            mapArea.scrollLeft = targetX - 50;
+            mapArea.scrollTop = 40;
         }
     }
 
@@ -550,11 +681,26 @@
         return `hsl(${(depth * 65) % 360}, 75%, 50%)`;
     }
 
+    function applyZoom() {
+        zoomGroup.setAttribute('transform', `scale(${zoomScale})`);
+        zoomResetBtn.textContent = `${Math.round(zoomScale * 100)}%`;
+        
+        const gridPattern = document.getElementById('grid');
+        if (gridPattern) {
+            gridPattern.setAttribute('width', 40 * zoomScale);
+            gridPattern.setAttribute('height', 40 * zoomScale);
+            const path = document.getElementById('grid-path');
+            if (path) {
+                path.setAttribute('d', `M ${40 * zoomScale} 0 L 0 0 0 ${40 * zoomScale}`);
+            }
+        }
+    }
+
     function renderMap() {
         nodesGroup.innerHTML = ''; linksGroup.innerHTML = '';
         globalNodeMap.clear();
         
-        const rootData = parseText(textInput.value);
+        const rootData = parseText(getActiveText());
         rootNodeRef = rootData; 
         
         precalculateSizes(rootData);
@@ -563,6 +709,21 @@
         calculateLayout(rootData, currentLayout === 'horizontal' ? 150 : 60, 1000);
         
         drawNodeAndLinks(rootData);
+
+        if (currentLayout === 'horizontal') {
+            viewerHeaderBar.style.display = 'flex';
+            applyZoom();
+        } else {
+            viewerHeaderBar.style.display = 'none';
+            zoomGroup.setAttribute('transform', 'scale(1)'); 
+            const gridPattern = document.getElementById('grid');
+            if (gridPattern) {
+                gridPattern.setAttribute('width', '40');
+                gridPattern.setAttribute('height', '40');
+                const path = document.getElementById('grid-path');
+                if (path) path.setAttribute('d', 'M 40 0 L 0 0 0 40');
+            }
+        }
     }
 
     function drawNodeAndLinks(node) {
@@ -607,16 +768,12 @@
         g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
         g.addEventListener('mouseleave', () => highlightBranch(node.id, false));
         
-        // 【アップデート】ノードクリック時に文字コピー＆開閉制御を実行
         g.addEventListener('click', (e) => {
-            // 1. クリップボードへコピー処理
             navigator.clipboard.writeText(node.text).then(() => {
-                // 視覚フィードバック：エフェクト用のクラスを一瞬付与
                 g.classList.add('copy-success-flash');
                 setTimeout(() => g.classList.remove('copy-success-flash'), 400);
             }).catch(err => console.error('コピー失敗:', err));
 
-            // 2. 従来の子ノード開閉処理
             if (node.children.length > 0) {
                 if (collapsedNodes.has(node.id)) {
                     collapsedNodes.delete(node.id);
@@ -722,34 +879,73 @@
 
     let isDown = false, sX, sY, sL, sT;
     
-    viewer.addEventListener('mousedown', (e) => {
+    mapArea.addEventListener('mousedown', (e) => {
         if (e.target.tagName === 'svg' || e.target.id === 'mindmap-svg' || e.target.getAttribute('fill') === 'url(#grid)') {
-            isDown = true; sX = e.pageX - viewer.offsetLeft; sY = e.pageY - viewer.offsetTop;
-            sL = viewer.scrollLeft; sT = viewer.scrollTop;
+            isDown = true; sX = e.pageX - mapArea.offsetLeft; sY = e.pageY - mapArea.offsetTop;
+            sL = mapArea.scrollLeft; sT = mapArea.scrollTop;
         }
     });
-    viewer.addEventListener('mousemove', (e) => {
+    mapArea.addEventListener('mousemove', (e) => {
         if (!isDown) return; e.preventDefault();
-        viewer.scrollLeft = sL - (e.pageX - viewer.offsetLeft - sX);
-        viewer.scrollTop = sT - (e.pageY - viewer.offsetTop - sY);
+        mapArea.scrollLeft = sL - (e.pageX - mapArea.offsetLeft - sX);
+        mapArea.scrollTop = sT - (e.pageY - mapArea.offsetTop - sY);
     });
-    viewer.addEventListener('mouseup', () => isDown = false);
+    mapArea.addEventListener('mouseup', () => isDown = false);
 
-    viewer.addEventListener('touchstart', (e) => {
+    mapArea.addEventListener('touchstart', (e) => {
         if (e.target.tagName === 'svg' || e.target.id === 'mindmap-svg' || e.target.getAttribute('fill') === 'url(#grid)') {
             isDown = true;
-            sX = e.touches[0].pageX - viewer.offsetLeft;
-            sY = e.touches[0].pageY - viewer.offsetTop;
-            sL = viewer.scrollLeft; sT = viewer.scrollTop;
+            sX = e.touches[0].pageX - mapArea.offsetLeft;
+            sY = e.touches[0].pageY - mapArea.offsetTop;
+            sL = mapArea.scrollLeft; sT = mapArea.scrollTop;
         }
     });
-    viewer.addEventListener('touchmove', (e) => {
+    mapArea.addEventListener('touchmove', (e) => {
         if (!isDown) return;
         e.preventDefault(); 
-        viewer.scrollLeft = sL - (e.touches[0].pageX - viewer.offsetLeft - sX);
-        viewer.scrollTop = sT - (e.touches[0].pageY - viewer.offsetTop - sY);
+        mapArea.scrollLeft = sL - (e.touches[0].pageX - mapArea.offsetLeft - sX);
+        mapArea.scrollTop = sT - (e.touches[0].pageY - mapArea.offsetTop - sY);
     }, { passive: false });
-    viewer.addEventListener('touchend', () => isDown = false);
+    mapArea.addEventListener('touchend', () => isDown = false);
+
+    mapArea.addEventListener('wheel', (e) => {
+        // ズーム変更処理を削除したため、通常の画面スクロール（閲覧移動）のみが有効になります
+    }, { passive: true });
+
+    zoomInBtn.addEventListener('click', () => {
+        if (currentLayout !== 'horizontal') return;
+        const nextScale = Math.min(MAX_ZOOM, zoomScale * 1.2);
+        adjustZoomFromCenter(nextScale);
+    });
+
+    zoomOutBtn.addEventListener('click', () => {
+        if (currentLayout !== 'horizontal') return;
+        const nextScale = Math.max(MIN_ZOOM, zoomScale / 1.2);
+        adjustZoomFromCenter(nextScale);
+    });
+
+    zoomResetBtn.addEventListener('click', () => {
+        if (currentLayout !== 'horizontal') return;
+        adjustZoomFromCenter(1.0);
+    });
+
+    function adjustZoomFromCenter(nextScale) {
+        if (nextScale === zoomScale) return;
+
+        const centerX = mapArea.clientWidth / 2;
+        const centerY = mapArea.clientHeight / 2;
+
+        const svgDocX = centerX + mapArea.scrollLeft;
+        const svgDocY = centerY + mapArea.scrollTop;
+
+        const ratio = nextScale / zoomScale;
+
+        zoomScale = nextScale;
+        applyZoom();
+
+        mapArea.scrollLeft = svgDocX * ratio - centerX;
+        mapArea.scrollTop = svgDocY * ratio - centerY;
+    }
 
     downloadBtn.addEventListener('click', () => {
         let minX = Infinity, maxX = -Infinity;
@@ -780,7 +976,16 @@
         const originalViewBox = svg.getAttribute('viewBox');
         svg.setAttribute('viewBox', `${minX - padding} ${minY - padding} ${cropWidth} ${cropHeight}`);
 
+        const originalTransform = zoomGroup.getAttribute('transform');
+        zoomGroup.setAttribute('transform', 'scale(1)');
+
         const svgData = new XMLSerializer().serializeToString(svg);
+
+        if (originalTransform) {
+            zoomGroup.setAttribute('transform', originalTransform);
+        } else {
+            zoomGroup.removeAttribute('transform');
+        }
 
         if (originalViewBox) {
             svg.setAttribute('viewBox', originalViewBox);
@@ -806,6 +1011,72 @@
             a.href = canvas.toDataURL('image/png'); 
             a.click();
         };
+    });
+
+    downloadHtmlBtn.addEventListener('click', () => {
+        const rootData = parseText(textInput.value);
+        
+        function buildHtmlTree(node) {
+            let html = `<li><span class="node-text">${escapeHtml(node.text)}</span>`;
+            if (node.children && node.children.length > 0) {
+                html += `<ul>`;
+                node.children.forEach(child => {
+                    html += buildHtmlTree(child);
+                });
+                html += `</ul>`;
+            }
+            html += `</li>`;
+            return html;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        let treeContentHtml = `<div><span class="node-root">${escapeHtml(rootData.text)}</span></div>`;
+        if (rootData.children && rootData.children.length > 0) {
+            treeContentHtml += `<ul>`;
+            rootData.children.forEach(child => {
+                treeContentHtml += buildHtmlTree(child);
+            });
+            treeContentHtml += `</ul>`;
+        }
+
+        const exportTemplate = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配布資料：${escapeHtml(rootData.text)}</title>
+    <style>
+        body { font-family: sans-serif; padding: 30px; background-color: #f8f9fa; color: #333; line-height: 1.6; }
+        .container { max-width: 900px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        h1 { font-size: 18px; color: #4a90e2; margin-bottom: 25px; border-bottom: 2px solid #eef0f2; padding-bottom: 10px; }
+        ul { list-style: none; padding-left: 28px; position: relative; }
+        ul::before { content: ""; position: absolute; left: 10px; top: 0; bottom: 0; width: 1px; background: #ccd1d9; }
+        li { position: relative; margin: 10px 0; padding-left: 15px; }
+        li::before { content: ""; position: absolute; left: -18px; top: 12px; width: 18px; height: 1px; background: #ccd1d9; }
+        li:last-child::after { content: ""; position: absolute; left: -19px; top: 13px; bottom: 0; width: 2px; background: #fff; }
+        .node-root { font-weight: bold; color: #fff; background: #4a90e2; padding: 8px 16px; border-radius: 4px; display: inline-block; margin-bottom: 10px; font-size: 16px; word-break: break-all; overflow-wrap: break-word; max-width: 100%; }
+        .node-text { background: #f1f3f5; padding: 6px 12px; border-radius: 4px; display: inline-block; border: 1px solid #e2e8f0; font-size: 14px; user-select: text; -webkit-user-select: text; word-break: break-all; overflow-wrap: break-word; max-width: 100%; }
+        .node-text:hover { background: #e2e8f0; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📄 配布資料（テキストコピー・選択可能）</h1>
+    ${treeContentHtml}
+</div>
+</body>
+</html>`;
+
+        const blob = new Blob([exportTemplate], { type: 'text/html;charset=utf-8' });
+        const a = document.createElement('a');
+        const titleSafe = rootData.text.replace(/[/\\?%*:|"<>]/g, '-').substring(0, 15);
+        a.download = `配布資料_${titleSafe || 'document'}.html`;
+        a.href = URL.createObjectURL(blob);
+        a.click();
+        URL.revokeObjectURL(a.href);
     });
 </script>
 </body>
