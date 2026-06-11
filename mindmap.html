@@ -140,7 +140,8 @@
         /* スクロール可能なマップ描画本体の領域 */
         .map-area { flex: 1; width: 100%; overflow: auto; position: relative; cursor: grab; }
         .map-area:active { cursor: grabbing; }
-        #mindmap-svg { position: absolute; top: 0; left: 0; min-width: 4000px; min-height: 4000px; }
+        /* 【改善】JS側からコンテンツ量に応じて動的に伸縮させるため、固定最小サイズを撤廃 */
+        #mindmap-svg { position: absolute; top: 0; left: 0; width: 4000px; height: 4000px; }
 
         body.view-only-mode .sidebar { display: none !important; }
         body.view-only-mode .floating-ctrl { display: none !important; }
@@ -500,15 +501,14 @@
 
     function focusRootNode() {
         if (!rootNodeRef) return;
-        const targetX = currentLayout === 'horizontal' ? 150 : 60;
-        const targetY = 1000;
         
         if (currentLayout === 'horizontal') {
-            mapArea.scrollLeft = targetX - 50;
-            mapArea.scrollTop = targetY - (mapArea.clientHeight / 2);
+            // 【改善】シフト補正後の正確な座標に合わせてスクロールセンターを調整
+            mapArea.scrollLeft = rootNodeRef.x - 50;
+            mapArea.scrollTop = (rootNodeRef.y + rootNodeRef.height / 2) - (mapArea.clientHeight / 2);
         } else {
-            mapArea.scrollLeft = targetX - 50;
-            mapArea.scrollTop = 40;
+            mapArea.scrollLeft = 10;
+            mapArea.scrollTop = 10;
         }
     }
 
@@ -624,7 +624,8 @@
         node.children.forEach(child => precalculateSizes(child));
     }
 
-    function calculateLayout(node, startX, startY) {
+    // 計算用テンポラリ関数
+    function calculateLayoutInitial(node, startX, startY) {
         globalNodeMap.set(node.id, node);
 
         if (currentLayout === 'horizontal') {
@@ -640,21 +641,28 @@
             let currentY = startY - totalHeight / 2;
             node.children.forEach(child => {
                 let size = getTreeSize(child);
-                calculateLayout(child, node.x + node.width + 60, currentY + size / 2);
+                calculateLayoutInitial(child, node.x + node.width + 60, currentY + size / 2);
                 currentY += size;
             });
         } else {
             node.x = startX + (node.depth * 45);
             node.y = treeYCounter;
-            
             treeYCounter += node.height + 12;
 
             if (collapsedNodes.has(node.id)) {
                 node.children.forEach(c => hideSubtree(c));
                 return;
             }
-            node.children.forEach(child => calculateLayout(child, startX, startY));
+            node.children.forEach(child => calculateLayoutInitial(child, startX, startY));
         }
+    }
+
+    // 【改善】全ノードの配置を再帰的にY座標補正する関数
+    function shiftAllNodesY(node, deltaY) {
+        if (node.x !== -9999) {
+            node.y += deltaY;
+        }
+        node.children.forEach(child => shiftAllNodesY(child, deltaY));
     }
 
     function hideSubtree(node) {
@@ -705,8 +713,43 @@
         
         precalculateSizes(rootData);
         
+        // 【改善】仮の初期中心点で一度全配置をモデリング
         treeYCounter = 60;
-        calculateLayout(rootData, currentLayout === 'horizontal' ? 150 : 60, 1000);
+        calculateLayoutInitial(rootData, currentLayout === 'horizontal' ? 150 : 60, 2000);
+        
+        // 【改善】横展開での見切れを防ぐ境界チェックと座標調整
+        if (currentLayout === 'horizontal') {
+            let minY = Infinity;
+            let maxY = -Infinity;
+            let maxX = -Infinity;
+
+            globalNodeMap.forEach(node => {
+                if (node.x === -9999) return;
+                if (node.y < minY) minY = node.y;
+                if (node.y + node.height > maxY) maxY = node.y + node.height;
+                if (node.x + node.width > maxX) maxX = node.x + node.width;
+            });
+
+            // 最上部がy=0未満にならないよう、安全マージン（80px）を持って全ノードをプラス方向にシフト
+            const topMargin = 80;
+            if (minY < topMargin) {
+                const correction = topMargin - minY;
+                shiftAllNodesY(rootData, correction);
+                minY += correction;
+                maxY += correction;
+            }
+
+            // コンテンツの総量に応じ、SVGキャンバスのエリアサイズを動的に拡張
+            const padding = 200;
+            const requiredWidth = Math.max(4000, maxX + padding);
+            const requiredHeight = Math.max(4000, maxY + padding);
+            svg.style.width = requiredWidth + 'px';
+            svg.style.height = requiredHeight + 'px';
+        } else {
+            // 縦展開時はデフォルト固定サイズ
+            svg.style.width = '4000px';
+            svg.style.height = '4000px';
+        }
         
         drawNodeAndLinks(rootData);
 
