@@ -224,17 +224,22 @@
             <button class="btn-action btn-upload" id="upload-btn" title="手元のテキストファイルを読み込みます">📂 ファイル選択</button>
         </div>
 
-        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力するか、上のボタンからテキストファイルを読み込んでください..."># マインドマップの作り方
-## 準備するもの
-### パソコン
-#### abcdefghijklmnopqrstuvwxyz
-#### 1234567890123456789012345
-### URLテスト
-#### https://example.com/path/to/resource/test
-## メリット
-### ここに25文字以上のとても長い文章を入力した場合でも綺麗に自動折り返しが行われるかテストします
-#### 長文ノードの下に子供が追加された場合
-##### これでもう絶対に上のノードと衝突しません</textarea>
+        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力するか、上のボタンからテキストファイルを読み込んでください..."># 福島旅行の計画
+## 1日目：会津若松エリア
+### 鶴ヶ城
+#### 戊辰戦争の歴史を学ぶ
+#### https://www.tsurugajo.com/tsurugajo/
+### 会津武家屋敷
+### 七日町通り散策
+#### お土産購入・カフェ
+## 2日目：喜多方・裏磐梯エリア
+### 喜多方ラーメン（朝ラー）
+### 五色沼湖沼群
+#### 毘沙門沼でボートに乗る
+#### 散策路ウォーキング（約4km）
+### 諸橋近代美術館
+#### ダリのコレクション
+#### https://dali.jp/</textarea>
         
         <div class="bottom-controls">
             <div class="btn-row">
@@ -826,7 +831,7 @@
             }
             
             const rawText = node.text.trim();
-            if (/^https?:\/\/[^\s]+$/i.test(rawText)) {
+            if (rawText.toLowerCase().startsWith('http://') || rawText.toLowerCase().startsWith('https://')) {
                 window.open(rawText, '_blank');
             } else {
                 const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(rawText)}`;
@@ -886,10 +891,15 @@
                 return;
             }
 
-            navigator.clipboard.writeText(node.text).then(() => {
-                g.classList.add('copy-success-flash');
-                setTimeout(() => g.classList.remove('copy-success-flash'), 400);
-            }).catch(err => console.error('コピー失敗:', err));
+            const rawText = node.text.trim();
+            if (rawText.toLowerCase().startsWith('http://') || rawText.toLowerCase().startsWith('https://')) {
+                window.open(rawText, '_blank');
+            } else {
+                navigator.clipboard.writeText(node.text).then(() => {
+                    g.classList.add('copy-success-flash');
+                    setTimeout(() => g.classList.remove('copy-success-flash'), 400);
+                }).catch(err => console.error('コピー失敗:', err));
+            }
 
             if (node.children.length > 0) {
                 if (collapsedNodes.has(node.id)) {
@@ -920,6 +930,10 @@
             text.setAttribute('fill', node.depth === 0 ? '#ffffff' : txtColor);
             text.setAttribute('font-size', node.fontSize);
             if (node.depth === 0 || collapsedNodes.has(node.id)) text.setAttribute('font-weight', 'bold');
+            
+            if (node.text.trim().toLowerCase().startsWith('http://') || node.text.trim().toLowerCase().startsWith('https://')) {
+                text.setAttribute('text-decoration', 'underline');
+            }
 
             const startY = node.y + (node.height / 2) - ((lineCount - 1) * 8) + 4;
             
@@ -966,6 +980,9 @@
             text.setAttribute('fill', txtColor);
             text.setAttribute('font-size', '14');
             if (collapsedNodes.has(node.id)) text.setAttribute('font-weight', 'bold');
+            if (node.text.trim().toLowerCase().startsWith('http://') || node.text.trim().toLowerCase().startsWith('https://')) {
+                text.setAttribute('text-decoration', 'underline');
+            }
 
             node.textLines.forEach((lineTxt, idx) => {
                 const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
@@ -1172,7 +1189,11 @@
         const rootData = parseText(textInput.value);
         
         function buildHtmlTree(node) {
-            let html = `<li><span class="node-text">${escapeHtml(node.text)}</span>`;
+            const raw = node.text.trim().toLowerCase();
+            const isUrl = raw.startsWith('http://') || raw.startsWith('https://');
+            const urlClass = isUrl ? 'is-url-link' : '';
+            
+            let html = `<li><span class="node-text js-interactive-node ${urlClass}" data-text="${escapeHtml(node.text)}">${escapeHtml(node.text)}</span>`;
             if (node.children && node.children.length > 0) {
                 html += `<ul>`;
                 node.children.forEach(child => {
@@ -1188,7 +1209,10 @@
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
-        let treeContentHtml = `<div><span class="node-root">${escapeHtml(rootData.text)}</span></div>`;
+        const isRootUrl = rootData.text.trim().toLowerCase().startsWith('http://') || rootData.text.trim().toLowerCase().startsWith('https://');
+        const rootUrlClass = isRootUrl ? 'is-url-link' : '';
+
+        let treeContentHtml = `<div><span class="node-root js-interactive-node ${rootUrlClass}" data-text="${escapeHtml(rootData.text)}">${escapeHtml(rootData.text)}</span></div>`;
         if (rootData.children && rootData.children.length > 0) {
             treeContentHtml += `<ul>`;
             rootData.children.forEach(child => {
@@ -1197,31 +1221,116 @@
             treeContentHtml += `</ul>`;
         }
 
+        const scriptOpenTag = '<' + 'script' + '>';
+        const scriptCloseTag = '<' + '/script' + '>';
+
         const exportTemplate = `<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>配布資料：${escapeHtml(rootData.text)}</title>
     <style>
-        body { font-family: sans-serif; padding: 30px; background-color: #f8f9fa; color: #333; line-height: 1.6; }
+        body { font-family: sans-serif; padding: 30px; background-color: #f8f9fa; color: #333; line-height: 1.6; user-select: none; -webkit-user-select: none; }
         .container { max-width: 900px; margin: 0 auto; background: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-        h1 { font-size: 18px; color: #4a90e2; margin-bottom: 25px; border-bottom: 2px solid #eef0f2; padding-bottom: 10px; }
+        h1 { font-size: 18px; color: #4a90e2; margin-bottom: 5px; border-bottom: 2px solid #eef0f2; padding-bottom: 10px; }
+        p.subtitle { font-size: 12px; color: #666; margin-bottom: 25px; }
         ul { list-style: none; padding-left: 28px; position: relative; }
         ul::before { content: ""; position: absolute; left: 10px; top: 0; bottom: 0; width: 1px; background: #ccd1d9; }
         li { position: relative; margin: 10px 0; padding-left: 15px; }
         li::before { content: ""; position: absolute; left: -18px; top: 12px; width: 18px; height: 1px; background: #ccd1d9; }
         li:last-child::after { content: ""; position: absolute; left: -19px; top: 13px; bottom: 0; width: 2px; background: #fff; }
-        .node-root { font-weight: bold; color: #fff; background: #4a90e2; padding: 8px 16px; border-radius: 4px; display: inline-block; margin-bottom: 10px; font-size: 16px; word-break: break-all; overflow-wrap: break-word; max-width: 100%; }
-        .node-text { background: #f1f3f5; padding: 6px 12px; border-radius: 4px; display: inline-block; border: 1px solid #e2e8f0; font-size: 14px; user-select: text; -webkit-user-select: text; word-break: break-all; overflow-wrap: break-word; max-width: 100%; }
-        .node-text:hover { background: #e2e8f0; }
+        
+        .node-root, .node-text { cursor: pointer; transition: all 0.2s; word-break: break-all; overflow-wrap: break-word; max-width: 100%; }
+        
+        .node-root { font-weight: bold; color: #fff; background: #4a90e2; padding: 8px 16px; border-radius: 4px; display: inline-block; margin-bottom: 10px; font-size: 16px; }
+        .node-root:hover { background: #357abd; }
+        
+        .node-text { background: #f1f3f5; padding: 6px 12px; border-radius: 4px; display: inline-block; border: 1px solid #e2e8f0; font-size: 14px; }
+        .node-text:hover { background: #e2e8f0; border-color: #cbd5e1; }
+        
+        .node-text.is-url-link { color: #0066cc; text-decoration: underline; }
+        .node-text.is-url-link:hover { background: #e0f0ff; color: #004499; }
+        .node-root.is-url-link { text-decoration: underline; background: #256bf5; }
+
+        @keyframes copy-flash {
+            0% { filter: drop-shadow(0px 0px 8px #2ec4b6); opacity: 0.7; }
+            100% { filter: none; opacity: 1; }
+        }
+        .copy-success-flash { animation: copy-flash 0.4s ease-out; }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1>📄 配布資料（テキストコピー・選択可能）</h1>
-    \${treeContentHtml}
+    <h1>📄 配布資料：${escapeHtml(rootData.text)}</h1>
+    <p class="subtitle">💡 通常テキスト：クリックでコピー / URL：クリックでアクセス（長押しはどちらもGoogle検索）</p>
+    ` + treeContentHtml + `
 </div>
+` + scriptOpenTag + `
+    document.querySelectorAll('.js-interactive-node').forEach(node => {
+        let holdTimer = null;
+        let isLongAction = false;
+        const HOLD_DURATION = 1200;
+
+        const triggerLongAction = (text) => {
+            if (navigator.vibrate) navigator.vibrate(40);
+            
+            const rawText = text.trim();
+            const lowerText = rawText.toLowerCase();
+            if (lowerText.startsWith('http://') || lowerText.startsWith('https://')) {
+                window.open(rawText, '_blank');
+            } else {
+                const searchUrl = 'https://www.google.com/search?q=' + encodeURIComponent(rawText);
+                window.open(searchUrl, '_blank');
+            }
+        };
+
+        node.addEventListener('touchstart', (e) => {
+            isLongAction = false;
+            holdTimer = setTimeout(() => {
+                isLongAction = true;
+                triggerLongAction(node.dataset.text);
+            }, HOLD_DURATION);
+        }, { passive: true });
+
+        node.addEventListener('touchmove', () => clearTimeout(holdTimer));
+        node.addEventListener('touchend', (e) => {
+            clearTimeout(holdTimer);
+            if (isLongAction) e.preventDefault();
+        });
+
+        node.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isLongAction = false;
+            holdTimer = setTimeout(() => {
+                isLongAction = true;
+                triggerLongAction(node.dataset.text);
+            }, HOLD_DURATION);
+        });
+
+        node.addEventListener('mousemove', () => clearTimeout(holdTimer));
+        node.addEventListener('mouseup', () => clearTimeout(holdTimer));
+        node.addEventListener('mouseleave', () => clearTimeout(holdTimer));
+
+        node.addEventListener('click', (e) => {
+            if (isLongAction) {
+                e.preventDefault();
+                return;
+            }
+
+            const rawText = node.dataset.text.trim();
+            const lowerText = rawText.toLowerCase();
+            if (lowerText.startsWith('http://') || lowerText.startsWith('https://')) {
+                window.open(rawText, '_blank');
+            } else {
+                navigator.clipboard.writeText(rawText).then(() => {
+                    node.classList.add('copy-success-flash');
+                    setTimeout(() => node.classList.remove('copy-success-flash'), 400);
+                }).catch(err => console.error('コピー失敗:', err));
+            }
+        });
+    });
+` + scriptCloseTag + `
 </body>
 </html>`;
 
