@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>オフラインマインドマップ（ファイル対応版）</title>
+    <title>オフラインマインドマップ</title>
     <style>
         :root {
             --bg-color: #f5f7fa;
@@ -52,7 +52,7 @@
 
         .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .sidebar h2 { font-size: 16px; color: var(--text-color); }
-        .sidebar p { font-size: 12px; color: #888; margin-bottom: 15px; line-height: 1.4; }
+        .sidebar p { font-size: 12px; color: #888; margin-bottom: 12px; line-height: 1.4; }
 
         .top-controls { display: flex; gap: 8px; }
         .theme-toggle, .focus-btn {
@@ -61,23 +61,35 @@
         }
         .theme-toggle:hover, .focus-btn:hover { opacity: 0.8; }
 
-        .layout-selector { display: flex; margin-bottom: 8px; background-color: #eee; padding: 3px; border-radius: 6px; }
+        .top-management-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        .layout-selector { flex: 2; display: flex; background-color: #eee; padding: 2px; border-radius: 6px; }
         [data-theme="dark"] .layout-selector { background-color: #1c1b1f; }
         
         .layout-btn {
-            flex: 1; padding: 8px; border: none; background: none;
-            font-size: 13px; font-weight: bold; color: #888; cursor: pointer;
+            flex: 1; padding: 6px 2px; border: none; background: none;
+            font-size: 12px; font-weight: bold; color: #888; cursor: pointer;
             border-radius: 4px; transition: all 0.2s;
+            white-space: nowrap;
         }
         .layout-btn.active { background-color: var(--sidebar-bg); color: #4a90e2; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
 
-        .collapse-controls { display: flex; gap: 8px; margin-bottom: 15px; }
+        .collapse-controls { flex: 3; display: flex; gap: 4px; }
         .collapse-btn {
-            flex: 1; padding: 6px; font-size: 12px; font-weight: bold; cursor: pointer;
-            border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--text-color);
+            flex: 1; padding: 6px 2px; font-size: 11px; font-weight: bold; cursor: pointer;
+            border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-color);
             transition: background-color 0.2s;
+            white-space: nowrap;
         }
         .collapse-btn:hover { background-color: rgba(74,144,226,0.1); border-color: #4a90e2; }
+
+        .top-file-row {
+            margin-bottom: 12px;
+        }
 
         textarea {
             flex: 1; width: 100%; padding: 10px; font-family: monospace; font-size: 14px;
@@ -91,6 +103,7 @@
         .btn-action {
             width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer;
             font-weight: bold; font-size: 13px; text-align: center; transition: background-color 0.2s, opacity 0.2s;
+            white-space: nowrap;
         }
         .btn-copy { background-color: #2ec4b6; color: white; }
         .btn-copy:hover { background-color: #25a195; }
@@ -99,10 +112,12 @@
         .btn-html { background-color: #f7a072; color: white; }
         .btn-html:hover { background-color: #e58f64; }
         
-        /* 新設：ファイル読み込みボタンのスタイル */
         .btn-upload { background-color: #8a5aed; color: white; }
         .btn-upload:hover { background-color: #7343d6; }
-        #file-input { display: none; } /* 実際のinputは隠す */
+        .btn-save-txt { background-color: #3a86ff; color: white; }
+        .btn-save-txt:hover { background-color: #256bf5; }
+        
+        #file-input { display: none; }
 
         .viewer { flex: 1; height: 100%; display: flex; flex-direction: column; background-color: var(--viewer-bg); position: relative; overflow: hidden; }
         
@@ -146,9 +161,10 @@
             .sidebar p { display: none; }
             .sidebar h2 { font-size: 14px; }
             .sidebar-header { margin-bottom: 8px; }
-            .layout-selector { margin-bottom: 4px; }
-            .collapse-controls { margin-bottom: 8px; gap: 4px; }
-            .layout-btn, .collapse-btn { padding: 4px; font-size: 11px; }
+            .top-management-row { margin-bottom: 4px; gap: 4px; }
+            .layout-selector { padding: 1px; }
+            .layout-btn, .collapse-btn { padding: 4px 2px; font-size: 10px; }
+            .top-file-row { margin-bottom: 6px; }
             textarea { font-size: 13px; }
             .bottom-controls { margin-top: 8px; gap: 6px; }
             .btn-action { padding: 6px; font-size: 12px; }
@@ -189,19 +205,26 @@
                 <button class="focus-btn" id="btn-focus-map">🗺 集中モード</button>
             </div>
         </div>
-        <p>マークダウン記法、または、半角スペース4つ(タブキー可)で階層分け可能</p>
+        <p>マークダウン記法、または半角スペース4つで階層分け可能</p>
         
-        <div class="layout-selector">
-            <button class="layout-btn active" id="btn-horizontal">横展開</button>
-            <button class="layout-btn" id="btn-vertical">縦展開</button>
+        <div class="top-management-row">
+            <div class="layout-selector">
+                <button class="layout-btn active" id="btn-horizontal">横</button>
+                <button class="layout-btn" id="btn-vertical">縦</button>
+            </div>
+
+            <div class="collapse-controls">
+                <button class="collapse-btn" id="btn-expand-all">📂 展開</button>
+                <button class="collapse-btn" id="btn-collapse-all">📁 閉じる</button>
+            </div>
         </div>
 
-        <div class="collapse-controls">
-            <button class="collapse-btn" id="btn-expand-all">📂 全て展開</button>
-            <button class="collapse-btn" id="btn-collapse-all">📁 全て閉じる</button>
+        <div class="top-file-row">
+            <input type="file" id="file-input" accept=".txt,.md,.json">
+            <button class="btn-action btn-upload" id="upload-btn" title="手元のテキストファイルを読み込みます">📂 ファイル選択</button>
         </div>
 
-        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力するか、下のボタンからテキストファイルを読み込んでください..."># マインドマップの作り方
+        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力するか、上のボタンからテキストファイルを読み込んでください..."># マインドマップの作り方
 ## 準備するもの
 ### パソコン
 #### abcdefghijklmnopqrstuvwxyz
@@ -214,13 +237,14 @@
 ##### これでもう絶対に上のノードと衝突しません</textarea>
         
         <div class="bottom-controls">
-            <button class="btn-action btn-copy" id="copy-btn">📋 テキストデータをコピー</button>
             <div class="btn-row">
-                <button class="btn-action btn-download" id="download-btn">PNG画像として保存</button>
-                <button class="btn-action btn-html" id="download-html-btn">📄 配布用HTMLを出力</button>
+                <button class="btn-action btn-copy" id="copy-btn">📋 テキストコピー</button>
+                <button class="btn-action btn-save-txt" id="save-txt-btn" title="入力中のテキストをファイルとして保存します">💾 ファイル保存</button>
             </div>
-            <input type="file" id="file-input" accept=".txt,.md,.json">
-            <button class="btn-action btn-upload" id="upload-btn">📂 テキストファイルを選択</button>
+            <div class="btn-row">
+                <button class="btn-action btn-download" id="download-btn">PNG保存</button>
+                <button class="btn-action btn-html" id="download-html-btn">📄 配布用HTML保存</button>
+            </div>
         </div>
     </div>
 
@@ -280,9 +304,9 @@
     const zoomOutBtn = document.getElementById('zoom-out');
     const zoomResetBtn = document.getElementById('zoom-reset');
 
-    // 【新設】ファイル読み込み用の要素取得
     const fileInput = document.getElementById('file-input');
     const uploadBtn = document.getElementById('upload-btn');
+    const saveTxtBtn = document.getElementById('save-txt-btn');
 
     const STORAGE_KEY = 'mindmap_text_data_v4';
     let currentLayout = 'horizontal'; 
@@ -313,12 +337,10 @@
         setTimeout(focusRootNode, 50);
     });
 
-    // 【新設】ファイル選択ボタンが押されたら、隠されているinputをクリックさせる
     uploadBtn.addEventListener('click', () => {
         fileInput.click();
     });
 
-    // 【新設】ファイルが選択された時のインポート処理（完全ローカル処理）
     fileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -326,20 +348,17 @@
         const reader = new FileReader();
         reader.onload = (event) => {
             const content = event.target.result;
-            textInput.value = content; // エディタに流し込む
-            localStorage.setItem(STORAGE_KEY, content); // ローカルストレージを更新
+            textInput.value = content;
+            localStorage.setItem(STORAGE_KEY, content);
             
-            // 状態を初期化して再描画
             collapsedNodes.clear();
             renderMap();
             focusRootNode();
             
-            // ボタンの表記を一瞬変えて成功を伝える
             const originalText = uploadBtn.textContent;
-            uploadBtn.textContent = '✅ 読み込み完了！';
+            uploadBtn.textContent = '✅ 完了';
             setTimeout(() => { uploadBtn.textContent = originalText; }, 1500);
             
-            // 次回同じファイルを選んでもイベントが発火するようにリセット
             fileInput.value = '';
         };
         
@@ -347,7 +366,31 @@
             alert('ファイルの読み込みに失敗しました。');
         };
 
-        reader.readAsText(file, 'UTF-8'); // テキストファイルとして読み込み
+        reader.readAsText(file, 'UTF-8');
+    });
+
+    saveTxtBtn.addEventListener('click', () => {
+        const textData = textInput.value;
+        if (!textData.trim()) {
+            alert('保存するテキストがありません。');
+            return;
+        }
+
+        const rootData = parseText(textData);
+        const titleSafe = rootData.text.replace(/[/\\?%*:|"<>]/g, '-').substring(0, 15).trim();
+        const fileName = `mindmap_${titleSafe || 'data'}.txt`;
+
+        const blob = new Blob([textData], { type: 'text/plain;charset=utf-8' });
+        const a = document.createElement('a');
+        a.download = fileName;
+        a.href = URL.createObjectURL(blob);
+        a.click();
+        
+        URL.revokeObjectURL(a.href);
+
+        const originalText = saveTxtBtn.textContent;
+        saveTxtBtn.textContent = '💾 保存完了';
+        setTimeout(() => { saveTxtBtn.textContent = originalText; }, 1500);
     });
 
     textInput.addEventListener('keydown', (e) => {
@@ -464,7 +507,7 @@
     copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(textInput.value).then(() => {
             const originalText = copyBtn.textContent;
-            copyBtn.textContent = '✅ コピー成功！';
+            copyBtn.textContent = '📋 コピー成功！';
             setTimeout(() => { copyBtn.textContent = originalText; }, 1500);
         });
     });
@@ -1059,7 +1102,7 @@
         mapArea.scrollTop = svgDocY * ratio - centerY;
     }
 
-    downloadBtn.addEventListener('click', () => {
+    document.getElementById('download-btn').addEventListener('click', () => {
         let minX = Infinity, maxX = -Infinity;
         let minY = Infinity, maxY = -Infinity;
         let hasVisibleNodes = false;
@@ -1177,7 +1220,7 @@
 <body>
 <div class="container">
     <h1>📄 配布資料（テキストコピー・選択可能）</h1>
-    ${treeContentHtml}
+    \${treeContentHtml}
 </div>
 </body>
 </html>`;
