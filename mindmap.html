@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>オフラインマインドマップ（セキュリティ重視版）</title>
+    <title>オフラインマインドマップ（ファイル対応版）</title>
     <style>
         :root {
             --bg-color: #f5f7fa;
@@ -98,6 +98,11 @@
         .btn-download:hover { background-color: #357abd; }
         .btn-html { background-color: #f7a072; color: white; }
         .btn-html:hover { background-color: #e58f64; }
+        
+        /* 新設：ファイル読み込みボタンのスタイル */
+        .btn-upload { background-color: #8a5aed; color: white; }
+        .btn-upload:hover { background-color: #7343d6; }
+        #file-input { display: none; } /* 実際のinputは隠す */
 
         .viewer { flex: 1; height: 100%; display: flex; flex-direction: column; background-color: var(--viewer-bg); position: relative; overflow: hidden; }
         
@@ -196,7 +201,7 @@
             <button class="collapse-btn" id="btn-collapse-all">📁 全て閉じる</button>
         </div>
 
-        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力してください..."># マインドマップの作り方
+        <textarea id="text-input" spellcheck="false" placeholder="ここに文字を入力するか、下のボタンからテキストファイルを読み込んでください..."># マインドマップの作り方
 ## 準備するもの
 ### パソコン
 #### abcdefghijklmnopqrstuvwxyz
@@ -214,6 +219,8 @@
                 <button class="btn-action btn-download" id="download-btn">PNG画像として保存</button>
                 <button class="btn-action btn-html" id="download-html-btn">📄 配布用HTMLを出力</button>
             </div>
+            <input type="file" id="file-input" accept=".txt,.md,.json">
+            <button class="btn-action btn-upload" id="upload-btn">📂 テキストファイルを選択</button>
         </div>
     </div>
 
@@ -273,6 +280,10 @@
     const zoomOutBtn = document.getElementById('zoom-out');
     const zoomResetBtn = document.getElementById('zoom-reset');
 
+    // 【新設】ファイル読み込み用の要素取得
+    const fileInput = document.getElementById('file-input');
+    const uploadBtn = document.getElementById('upload-btn');
+
     const STORAGE_KEY = 'mindmap_text_data_v4';
     let currentLayout = 'horizontal'; 
     let treeYCounter = 0;
@@ -300,6 +311,43 @@
 
         renderMap();
         setTimeout(focusRootNode, 50);
+    });
+
+    // 【新設】ファイル選択ボタンが押されたら、隠されているinputをクリックさせる
+    uploadBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // 【新設】ファイルが選択された時のインポート処理（完全ローカル処理）
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target.result;
+            textInput.value = content; // エディタに流し込む
+            localStorage.setItem(STORAGE_KEY, content); // ローカルストレージを更新
+            
+            // 状態を初期化して再描画
+            collapsedNodes.clear();
+            renderMap();
+            focusRootNode();
+            
+            // ボタンの表記を一瞬変えて成功を伝える
+            const originalText = uploadBtn.textContent;
+            uploadBtn.textContent = '✅ 読み込み完了！';
+            setTimeout(() => { uploadBtn.textContent = originalText; }, 1500);
+            
+            // 次回同じファイルを選んでもイベントが発火するようにリセット
+            fileInput.value = '';
+        };
+        
+        reader.onerror = () => {
+            alert('ファイルの読み込みに失敗しました。');
+        };
+
+        reader.readAsText(file, 'UTF-8'); // テキストファイルとして読み込み
     });
 
     textInput.addEventListener('keydown', (e) => {
@@ -722,15 +770,14 @@
         g.setAttribute('class', 'node-group');
         g.setAttribute('id', `g-${node.id}`);
 
-g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
+        g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
         g.addEventListener('mouseleave', () => highlightBranch(node.id, false));
         
         let holdTimer = null;
         let isLongAction = false;
-        const HOLD_DURATION = 1200; // 【改良】長押し判定を1.2秒に延長して誤爆を防止
+        const HOLD_DURATION = 1200; 
 
         const triggerLongAction = () => {
-            // 長押し成功時にスマホ等で軽くバイブレーションフィードバック（対応端末のみ）
             if (navigator.vibrate) {
                 navigator.vibrate(40); 
             }
@@ -744,7 +791,6 @@ g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
             }
         };
 
-        // --- スマートフォン等でのタッチ操作 ---
         g.addEventListener('touchstart', (e) => {
             if (isPinching) return;
             isLongAction = false;
@@ -756,7 +802,6 @@ g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
         }, { passive: true });
 
         g.addEventListener('touchmove', () => {
-            // 指が動いたら長押しタイマーをキャンセル（スクロール時などの誤爆を防ぐ）
             clearTimeout(holdTimer);
         });
 
@@ -768,10 +813,9 @@ g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
             }
         });
 
-        // --- パソコンでのマウス操作 ---
         g.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return; // 左クリックのみ対象
-            isDown = false; // マップ移動のドラッグと競合させない
+            if (e.button !== 0) return; 
+            isDown = false; 
             isLongAction = false;
 
             holdTimer = setTimeout(() => {
@@ -781,7 +825,6 @@ g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
         });
 
         g.addEventListener('mousemove', () => {
-            // マウスが動いたら長押しをキャンセル（文字選択やドラッグ操作を優先）
             clearTimeout(holdTimer);
         });
 
@@ -794,20 +837,17 @@ g.addEventListener('mouseenter', () => highlightBranch(node.id, true));
         });
 
         g.addEventListener('click', (e) => {
-            // 長押しが成立していた場合は、通常のクリック処理（クリップボードコピー）を行わない
             if (isLongAction || isPinching) {
                 e.preventDefault();
                 e.stopPropagation();
                 return;
             }
 
-            // 通常のクリック：クリップボードへ文字をコピー
             navigator.clipboard.writeText(node.text).then(() => {
                 g.classList.add('copy-success-flash');
                 setTimeout(() => g.classList.remove('copy-success-flash'), 400);
             }).catch(err => console.error('コピー失敗:', err));
 
-            // 子ノードの開閉処理
             if (node.children.length > 0) {
                 if (collapsedNodes.has(node.id)) {
                     collapsedNodes.delete(node.id);
