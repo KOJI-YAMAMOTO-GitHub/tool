@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>画像からPDFへの変換ツール</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; color: #333; }
+        .box { border: 2px dashed #007bff; background-color: #f8fafc; padding: 30px 20px; text-align: center; margin-bottom: 20px; border-radius: 8px; }
+        #fileInput { display: none; }
+        label { background-color: #007bff; color: white; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-weight: bold; display: inline-block; transition: 0.2s; }
+        label:hover { background-color: #0056b3; }
+        
+        /* ファイル名入力欄のスタイル */
+        .input-group { margin-bottom: 20px; }
+        .input-group label { background-color: transparent; color: #333; padding: 0; font-weight: bold; display: block; margin-bottom: 8px; text-align: left; }
+        .input-group input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; box-sizing: border-box; }
+        
+        button { background-color: #28a745; color: white; border: none; padding: 12px 20px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; display: block; width: 100%; margin-top: 10px; transition: 0.2s; }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #fileList { margin-top: 15px; background: #fff; border: 1px solid #e2e8f0; padding: 10px; border-radius: 5px; text-align: left; max-height: 150px; overflow-y: auto; }
+        .file-item { font-size: 14px; margin-bottom: 4px; color: #4a5568; }
+    </style>
+</head>
+<body>
+
+    <h1>画像からPDFを作成</h1>
+    <p style="font-size: 13px; color: #666;">外部接続なしで安全にブラウザ内だけでPDFに変換します。</p>
+    
+    <div class="box">
+        <label for="fileInput">画像ファイルを選択</label>
+        <input type="file" id="fileInput" accept="image/jpeg, image/jpg" multiple>
+        <div id="fileList"><span style="color: #999;">ファイルが選択されていません</span></div>
+    </div>
+
+    <!-- 追加：ファイル名の入力欄 -->
+    <div class="input-group">
+        <label for="pdfNameInput">保存するPDFのファイル名</label>
+        <input type="text" id="pdfNameInput" placeholder="images (未入力の場合は images.pdf になります)">
+    </div>
+
+    <button id="createPdfBtn" disabled>PDFを作成してダウンロード</button>
+
+    <script>
+        // PDF構造を自作する関数
+        function generateSimplePdfFromImages(images) {
+            let pdfContent = "%PDF-1.4\n";
+            let objects = [];
+            let catalogObjNum = 1;
+            let pagesObjNum = 2;
+            let currentObjNum = 3;
+            let pageObjectNums = [];
+            let imageObjectNums = [];
+            
+            for (let i = 0; i < images.length; i++) {
+                let img = images[i];
+                let imgObjNum = currentObjNum++;
+                let contentObjNum = currentObjNum++;
+                let pageObjNum = currentObjNum++;
+                
+                imageObjectNums.push(imgObjNum);
+                pageObjectNums.push(pageObjNum);
+                
+                let filter = "/DCTDecode";
+                let imgHeader = `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter ${filter} /Length ${img.bytes.length} >>\nstream\n`;
+                let imgFooter = "\nendstream\n";
+                
+                let contentStream = `q\n${img.width} 0 0 ${img.height} 0 0 cm\n/Im${i} Do\nQ\n`;
+                let contentHeader = `<< /Length ${contentStream.length} >>\nstream\n`;
+                let contentFooter = "endstream\n";
+                
+                objects.push({ num: imgObjNum, header: imgHeader, body: img.bytes, footer: imgFooter });
+                objects.push({ num: contentObjNum, header: contentHeader, body: new TextEncoder().encode(contentStream), footer: contentFooter });
+                
+                let pageHeader = `<< /Type /Page /Parent ${pagesObjNum} 0 R /MediaBox [0 0 ${img.width} ${img.height}] /Contents ${contentObjNum} 0 R /Resources << /XObject << /Im${i} ${imgObjNum} 0 R >> >> >>\n`;
+                objects.push({ num: pageObjNum, header: pageHeader, body: new Uint8Array(), footer: "" });
+            }
+            
+            let pagesKids = pageObjectNums.map(n => `${n} 0 R`).join(" ");
+            let pagesHeader = `<< /Type /Pages /Kids [${pagesKids}] /Count ${images.length} >>\n`;
+            let catalogHeader = `<< /Type /Catalog /Pages ${pagesObjNum} 0 R >>\n`;
+            
+            objects.unshift({ num: pagesObjNum, header: pagesHeader, body: new Uint8Array(), footer: "" });
+            objects.unshift({ num: catalogObjNum, header: catalogHeader, body: new Uint8Array(), footer: "" });
+            
+            let offsets = {};
+            let totalLength = pdfContent.length;
+            let finalBuffers = [new TextEncoder().encode(pdfContent)];
+            
+            for (let obj of objects) {
+                offsets[obj.num] = totalLength;
+                let objHead = `${obj.num} 0 obj\n${obj.header}`;
+                let objFoot = obj.footer + "endobj\n";
+                
+                let headBytes = new TextEncoder().encode(objHead);
+                let footBytes = new TextEncoder().encode(objFoot);
+                
+                finalBuffers.push(headBytes, obj.body, footBytes);
+                totalLength += headBytes.length + obj.body.length + footBytes.length;
+            }
+            
+            let startxref = totalLength;
+            let xref = `xref\n0 ${currentObjNum}\n0000000000 65535 f \n`;
+            for (let i = 1; i < currentObjNum; i++) {
+                let offsetStr = String(offsets[i] || 0).padStart(10, '0');
+                xref += `${offsetStr} 00000 n \n`;
+            }
+            
+            let trailer = `trailer\n<< /Size ${currentObjNum} /Root ${catalogObjNum} 0 R >>\nstartxref\n${startxref}\n%%EOF\n`;
+            finalBuffers.push(new TextEncoder().encode(xref + trailer));
+            
+            return new Blob(finalBuffers, { type: "application/pdf" });
+        }
+
+        function getImageDimensions(file) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve({ width: img.width, height: img.height });
+                img.onerror = () => resolve({ width: 800, height: 600 });
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const createPdfBtn = document.getElementById('createPdfBtn');
+        const pdfNameInput = document.getElementById('pdfNameInput'); // 追加
+        let selectedFiles = [];
+
+        fileInput.addEventListener('change', (event) => {
+            selectedFiles = Array.from(event.target.files);
+            if (selectedFiles.length > 0) {
+                fileList.innerHTML = selectedFiles.map(file => `<div class="file-item">・ ${file.name}</div>`).join('');
+                createPdfBtn.disabled = false;
+            } else {
+                fileList.innerHTML = '<span style="color: #999;">ファイルが選択されていません</span>';
+                createPdfBtn.disabled = true;
+            }
+        });
+
+        createPdfBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+
+            createPdfBtn.textContent = 'PDFを作成中...';
+            createPdfBtn.disabled = true;
+
+            try {
+                let imageDataArray = [];
+
+                for (const file of selectedFiles) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const bytes = new Uint8Array(arrayBuffer);
+                    const dims = await getImageDimensions(file);
+
+                    imageDataArray.push({
+                        bytes: bytes,
+                        width: dims.width,
+                        height: dims.height,
+                        type: "image/jpeg"
+                    });
+                }
+
+                const pdfBlob = generateSimplePdfFromImages(imageDataArray);
+
+                // 追加：ファイル名の決定処理（空白ならデフォルト名、.pdfが無ければ自動付与）
+                let filename = pdfNameInput.value.trim();
+                if (!filename) {
+                    filename = 'images.pdf';
+                } else if (!filename.toLowerCase().endsWith('.pdf')) {
+                    filename += '.pdf';
+                }
+
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(pdfBlob);
+                link.download = filename; // 決定したファイル名を設定
+                link.click();
+
+            } catch (error) {
+                console.error('PDF作成エラー:', error);
+                alert('PDFの作成に失敗しました。');
+            }
+
+            createPdfBtn.textContent = 'PDFを作成してダウンロード';
+            createPdfBtn.disabled = false;
+        });
+    </script>
+</body>
+</html>
