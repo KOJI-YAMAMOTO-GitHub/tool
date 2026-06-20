@@ -7,3 +7,6 @@
 
 ## CSVを表形式に変換
 [https://koji-yamamoto-github.github.io/tool/convertCSVtoTable](https://koji-yamamoto-github.github.io/tool/convertCSVtoTable)
+
+## 画像一括リサイズ・トリミング
+[https://koji-yamamoto-github.github.io/tool/resizeImg](https://koji-yamamoto-github.github.io/tool/resizeImg)
