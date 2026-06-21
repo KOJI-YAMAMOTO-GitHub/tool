@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemma 4 オフライン実行検証（事前準備要）</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 20px auto; padding: 0 10px; }
+        .section { background: #f5f5f5; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+        .links-section { background: #e3f2fd; border-left: 5px solid #2196f3; padding: 15px; margin-bottom: 15px; border-radius: 4px; }
+        .links-section a { display: block; margin: 5px 0; color: #0d47a1; text-decoration: none; }
+        .links-section a:hover { text-decoration: underline; }
+        .guide-box { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.9em; line-height: 1.5; }
+        .alert-box { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 12px; margin-top: 10px; border-radius: 4px; font-size: 0.9em; line-height: 1.5; }
+        input[type="text"] { width: 80%; padding: 8px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #output { background: #e9ecef; padding: 15px; white-space: pre-wrap; border-radius: 4px; min-height: 50px; margin-top: 10px; }
+        .status { font-weight: bold; color: #28a745; }
+        .warning-status { font-weight: bold; color: #dc3545; }
+        ul { margin: 5px 0; padding-left: 20px; }
+        .counter-badge { display: inline-block; padding: 4px 8px; background: #e2e3e5; border-radius: 4px; font-weight: bold; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+    <h1>Gemma 4 オフライン実行検証（事前準備要）</h1>
+
+    <div class="links-section">
+        <h3>🔗 公式リファレンス・リポジトリ</h3>
+        <a href="https://ai.google.dev/gemma/docs/core?hl=ja" target="_blank">📄 Gemma コアオープンモデルの概要 (Google公式)</a>
+        <a href="https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main" target="_blank">🤗 Gemma 4 E2B LiteRTモデル (Hugging Face)</a>
+        <a href="https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main" target="_blank">🤗 Gemma 4 E4B LiteRTモデル (Hugging Face)</a>
+        <a href="https://huggingface.co/google/gemma-4-E4B-it/tree/main" target="_blank">🤗 Gemma 4 E4B 公式リポジトリ (Hugging Face)</a>
+    </div>
+
+    <div class="section">
+        <h3>1. Gemma 4 モデルの準備</h3>
+        <div class="guide-box">
+            <strong>【重要】事前にモデルファイルのダウンロードが必要です</strong><br>
+            このアプリは完全オフラインで動作するため、AIの「脳みそ」となるファイルをあらかじめ手元のパソコンに保存しておく必要があります。<br>
+            上のリンク（Hugging Face）から、お使いになりたいモデルの <strong>Files and versions</strong> タブを開き、以下のいずれかのファイルをダウンロードしてください。<br>
+            <ul>
+                <li><strong>E2B（軽量・高速版）の場合：</strong> <code>gemma-4-E2B-it-litert-lm.bin</code> または <code>gemma-4-E2B-it-web.task</code></li>
+                <li><strong>E4B（高性能版）の場合：</strong> <code>gemma-4-E4B-it-litert-lm.bin</code></li>
+            </ul>
+            ダウンロードが完了したら、下の「ファイルを選択」ボタンからそのファイルを読み込ませてください。
+        </div>
+        <br>
+        <input type="file" id="modelFile" accept=".task,.bin,.litertlm">
+        <p id="modelStatus">ダウンロードしたモデルファイルを選択してください。</p>
+    </div>
+
+    <div class="section">
+        <h3>2. 訪問記録（CSVまたはテキストファイル）の読み込み（複数選択可）</h3>
+        
+        <div class="alert-box">
+            <strong>⚠️ 読み込みファイルに関する制限とお願い（重要）</strong><br>
+            手元のパソコンで動くローカルAIの仕様上、一度に処理できる全体のデータ量（作業机の広さ）には物理的な限界があります。<br>
+            選択するファイルの<strong>合計文字数は、日本語で最大3,000文字〜4,000文字程度（ファイルサイズで数KB〜数十KB程度）</strong>に抑えてください。<br>
+            <br>
+            ※10万文字を超えるような巨大なファイルをそのまま読み込ませると、AIの処理限界（maxTokens）を超えてエラーが発生し、回答できなくなります。データ量が多い場合は、ファイルを「月ごと」や「顧客ごと」に細かく分割して読み込ませてください。
+        </div>
+        <br>
+        
+        <input type="file" id="textFiles" accept=".csv,.txt" multiple>
+        <div id="fileStatus"></div>
+    </div>
+
+    <div class="section">
+        <h3>3. 質問</h3>
+        <input type="text" id="userQuestion" placeholder="例：A社とB社の直近の訪問記録を比較して要約して">
+        <button id="askBtn" disabled>質問する</button>
+        <h4>回答：</h4>
+        <div id="output"></div>
+    </div>
+
+    <script type="module">
+        import { FilesetResolver, LlmInference } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai";
+
+        let llmInference = null;
+        let combinedDocsText = "";
+        let isCharLimitExceeded = false;
+
+        // --- ① Gemma 4 モデルの読み込み処理 ---
+        document.getElementById('modelFile').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('modelStatus');
+            status.textContent = "モデルをブラウザに読み込み中（数秒かかります）...";
+            document.getElementById('askBtn').disabled = true;
+
+            try {
+                const genaiFileset = await FilesetResolver.forGenAiTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai/wasm"
+                );
+                
+                const modelUrl = URL.createObjectURL(file);
+
+                llmInference = await LlmInference.createFromOptions(genaiFileset, {
+                    baseOptions: { modelAssetPath: modelUrl },
+                    maxTokens: 8192, 
+                    topK: 40,
+                    temperature: 0.2,
+                });
+
+                status.innerHTML = "<span class='status'>Gemma 4 の準備が完了しました！</span>";
+                checkReady();
+            } catch (error) {
+                status.textContent = "エラーが発生しました: " + error.message;
+                console.error(error);
+            }
+        });
+
+        // --- ② 複数ファイル（CSV/TXT）の読み込みと文字数チェック ---
+        document.getElementById('textFiles').addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+
+            const statusDiv = document.getElementById('fileStatus');
+            statusDiv.textContent = "ファイルを読み込み中...";
+
+            combinedDocsText = "";
+            let totalLength = 0;
+            let fileListHtml = "<ul>";
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                fileListHtml += `<li>${file.name}</li>`;
+
+                const text = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => resolve(event.target.result);
+                    reader.readAsText(file, "UTF-8");
+                });
+
+                combinedDocsText += `\n--- データ元ファイル: ${file.name} ---\n`;
+                combinedDocsText += text + "\n";
+                
+                totalLength += text.length;
+            }
+
+            fileListHtml += "</ul>";
+
+            let messageHtml = "";
+            if (totalLength > 4000) {
+                isCharLimitExceeded = true;
+                messageHtml = `<br><span class="warning-status">⚠️ 警告: 合計文字数が多すぎます（推奨は4,000文字まで）。このまま質問するとAIがパンクしてエラーになる可能性が非常に高いです。ファイルを小分けにしてください。</span>`;
+            } else {
+                isCharLimitExceeded = false;
+                messageHtml = `<br><span class="status">✅ 安全: AIが一度に処理できる適正な文字数に収まっています。</span>`;
+            }
+
+            statusDiv.innerHTML = `
+                <span class='status'>合計 ${files.length} 件のファイルを読み込みました：</span>
+                ${fileListHtml}
+                <div class="counter-badge">現在の合計文字数: ${totalLength.toLocaleString()} 文字</div>
+                ${messageHtml}
+            `;
+            
+            checkReady();
+        });
+
+        function checkReady() {
+            if (llmInference && combinedDocsText && !isCharLimitExceeded) {
+                document.getElementById('askBtn').disabled = false;
+            } else {
+                document.getElementById('askBtn').disabled = true;
+            }
+        }
+
+        // --- ③ 質問の実行とプロンプト組み立て ---
+        document.getElementById('askBtn').addEventListener('click', async () => {
+            const questionInput = document.getElementById('userQuestion');
+            const askButton = document.getElementById('askBtn');
+            const output = document.getElementById('output');
+            
+            const question = questionInput.value;
+            if (!question) return;
+
+            askButton.disabled = true;
+            questionInput.disabled = true;
+            output.textContent = "データを解析しながら思考中（処理が終わるまでお待ちください）...";
+
+            const prompt = `あなたは提出された複数のデータファイルの内容のみを元に答えるアシスタントです。
+以下の【参照データ】に記載されている内容だけを参考にして、ユーザーの【質問】に日本語で正確に答えてください。
+複数のファイルにまたがるデータがある場合は、それらを総合して回答してください。
+データにない情報や、関係のない質問には「データが見つかりません」とだけ答えてください。
+
+【参照データ】
+${combinedDocsText}
+
+【質問】
+${question}
+
+【回答】`;
+
+            try {
+                const response = await llmInference.generateResponse(prompt);
+                output.textContent = response;
+            } catch (error) {
+                output.textContent = "推論中にエラーが発生しました: " + error.message;
+            } finally {
+                askButton.disabled = false;
+                questionInput.disabled = false;
+                questionInput.focus();
+            }
+        });
+    </script>
+</body>
+</html>
