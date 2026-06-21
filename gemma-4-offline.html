@@ -12,6 +12,7 @@
         .links-section a:hover { text-decoration: underline; }
         .guide-box { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.9em; line-height: 1.5; }
         .alert-box { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 12px; margin-top: 10px; border-radius: 4px; font-size: 0.9em; line-height: 1.5; }
+        .mode-select-box { background: #e2e3e5; padding: 12px; margin-bottom: 15px; border-radius: 6px; display: flex; gap: 15px; align-items: center; }
         input[type="text"] { width: 80%; padding: 8px; }
         button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
         button:disabled { background: #ccc; cursor: not-allowed; }
@@ -52,7 +53,7 @@
     </div>
 
     <div class="section">
-        <h3>2. 訪問記録（CSVまたはテキストファイル）の読み込み（複数選択可）</h3>
+        <h3>2. テキストファイル読込（複数可）</h3>
         
         <div class="alert-box">
             <strong>⚠️ 読み込みファイルに関する制限とお願い（重要）</strong><br>
@@ -69,7 +70,18 @@
 
     <div class="section">
         <h3>3. 質問</h3>
-        <input type="text" id="userQuestion" placeholder="例：A社とB社の直近の訪問記録を比較して要約して">
+        
+        <div class="mode-select-box">
+            <strong>🤖 モード：</strong>
+            <label>
+                <input type="radio" name="aiMode" value="file" checked> ファイル
+            </label>
+            <label>
+                <input type="radio" name="aiMode" value="chat"> 通常
+            </label>
+        </div>
+
+        <input type="text" id="userQuestion" placeholder="例：A社とB社の直近の訪問記録を比較して要約して / カレーの作り方を教えて">
         <button id="askBtn" disabled>質問する</button>
         <h4>回答：</h4>
         <div id="output"></div>
@@ -162,15 +174,32 @@
             checkReady();
         });
 
+        document.querySelectorAll('input[name="aiMode"]').forEach((radio) => {
+            radio.addEventListener('change', () => {
+                checkReady();
+            });
+        });
+
         function checkReady() {
-            if (llmInference && combinedDocsText && !isCharLimitExceeded) {
+            if (!llmInference) {
+                document.getElementById('askBtn').disabled = true;
+                return;
+            }
+
+            const selectedMode = document.querySelector('input[name="aiMode"]:checked').value;
+
+            if (selectedMode === "chat") {
                 document.getElementById('askBtn').disabled = false;
             } else {
-                document.getElementById('askBtn').disabled = true;
+                if (combinedDocsText && !isCharLimitExceeded) {
+                    document.getElementById('askBtn').disabled = false;
+                } else {
+                    document.getElementById('askBtn').disabled = true;
+                }
             }
         }
 
-        // --- ③ 質問の実行とプロンプト組み立て ---
+        // --- ③ 質問の実行とプロンプトの切り替え分岐 ---
         document.getElementById('askBtn').addEventListener('click', async () => {
             const questionInput = document.getElementById('userQuestion');
             const askButton = document.getElementById('askBtn');
@@ -181,9 +210,20 @@
 
             askButton.disabled = true;
             questionInput.disabled = true;
-            output.textContent = "データを解析しながら思考中（処理が終わるまでお待ちください）...";
+            output.textContent = "思考中（処理が終わるまでお待ちください）...";
 
-            const prompt = `あなたは提出された複数のデータファイルの内容のみを元に答えるアシスタントです。
+            const selectedMode = document.querySelector('input[name="aiMode"]:checked').value;
+            let prompt = "";
+
+            if (selectedMode === "chat") {
+                prompt = `あなたは親切で優秀なAIアシスタントです。ユーザーの質問に日本語で分かりやすく回答してください。
+
+【質問】
+${question}
+
+【回答】`;
+            } else {
+                prompt = `あなたは提出された複数のデータファイルの内容のみを元に答えるアシスタントです。
 以下の【参照データ】に記載されている内容だけを参考にして、ユーザーの【質問】に日本語で正確に答えてください。
 複数のファイルにまたがるデータがある場合は、それらを総合して回答してください。
 データにない情報や、関係のない質問には「データが見つかりません」とだけ答えてください。
@@ -195,6 +235,7 @@ ${combinedDocsText}
 ${question}
 
 【回答】`;
+            }
 
             try {
                 const response = await llmInference.generateResponse(prompt);
