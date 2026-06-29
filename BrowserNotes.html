@@ -1,0 +1,280 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Notes</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sawarabi+Mincho&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        body {
+            font-family: "Sawarabi Mincho", serif;
+            font-size: 16px; 
+            line-height: 1.2;
+            padding: 10px;
+            margin: 0;
+        }
+
+        .controls {
+            margin-bottom: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            align-items: center;
+        }
+
+        input[type="button"], select {
+            padding: 10px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #eee;
+            border-radius: 4px;
+            font-family: "Sawarabi Mincho", serif;
+        }
+
+        select {
+            background: #fff;
+            max-width: 200px;
+        }
+
+        #pagetitle {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            font-family: "Sawarabi Mincho", serif;
+        }
+
+        #textarea {
+            outline: none;
+            width: 100%;
+            min-height: 400px;
+            padding: 10px 0;
+            box-sizing: border-box;
+            background-color: #fff;
+            border: none;
+            font-size: 18px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            overflow-wrap: break-word;
+        }
+
+        #textarea img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="controls">
+        <select id="noteSelect" onchange="changeNote(this.value)"></select>
+        <input type="button" value="新規メモ" onclick="createNewNote();"/>
+        <input type="button" value="メモ削除" onclick="deleteCurrentNote();"/>
+        
+        <input type="button" value="HTML出力" onclick="exportHTML();"/>
+        <input type="button" value="PDF出力" onclick="exportPDF();"/>
+        <input type="button" value="画像出力(PNG)" onclick="exportImage();"/>
+        <input type="button" value="全データ消去" onclick="localStorageClearAll();"/>
+    </div>
+
+    <hr>
+    <label style="font-size: 12px; color: #666;">保存ファイル名（メモのタイトル）：</label><br>
+    <input type="text" id="pagetitle" value="MyNote" oninput="updateTitle(this.value)">
+
+    <hr>
+    <div id="textarea" contentEditable="true"></div>
+
+    <script type="text/javascript">
+        const editor = document.getElementById('textarea');
+        const titleInput = document.getElementById('pagetitle');
+        const noteSelect = document.getElementById('noteSelect');
+
+        // アプリ内で保持するデータ構造
+        let notes = [];         // メモの配列 [{id: "時間スタンプ", title: "...", content: "..."}, ...]
+        let currentNoteId = ""; // 現在選択中のメモのID
+
+        // ページ読み込み時の処理
+        window.addEventListener('load', function(){
+            const savedNotes = localStorage.getItem('multi_notes');
+            const savedCurrentId = localStorage.getItem('current_note_id');
+
+            if (savedNotes) {
+                notes = JSON.parse(savedNotes);
+            }
+
+            // メモが空、またはデータが不正な場合は初期メモを作成
+            if (notes.length === 0) {
+                const defaultId = Date.now().toString();
+                notes.push({
+                    id: defaultId,
+                    title: "MyNote",
+                    content: "ここに内容を入力してください。"
+                });
+                currentNoteId = defaultId;
+            } else {
+                // 前回開いていたメモIDがあればそれを、なければ最初のメモを選択
+                currentNoteId = savedCurrentId && notes.some(n => n.id === savedCurrentId) ? savedCurrentId : notes[0].id;
+            }
+
+            updateSelectOptions();
+            loadNote(currentNoteId);
+        });
+
+        // ページを閉じる前の保存処理
+        window.addEventListener('beforeunload', function() {
+            saveCurrentData();
+        });
+
+        // 現在表示されている内容を配列とlocalStorageに同期する関数
+        function saveCurrentData() {
+            const currentNote = notes.find(n => n.id === currentNoteId);
+            if (currentNote) {
+                currentNote.title = titleInput.value;
+                currentNote.content = editor.innerHTML;
+            }
+            localStorage.setItem('multi_notes', JSON.stringify(notes));
+            localStorage.setItem('current_note_id', currentNoteId);
+        }
+
+        // 指定したIDのメモを画面に読み込む
+        function loadNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (note) {
+                currentNoteId = id;
+                titleInput.value = note.title;
+                editor.innerHTML = note.content;
+                noteSelect.value = id;
+            }
+        }
+
+        // プルダウンの選択肢を更新する
+        function updateSelectOptions() {
+            noteSelect.innerHTML = "";
+            notes.forEach(note => {
+                const opt = document.createElement('option');
+                opt.value = note.id;
+                opt.textContent = note.title || "(無題のメモ)";
+                noteSelect.appendChild(opt);
+            });
+        }
+
+        // メモのタイトルがリアルタイムに変更されたとき、プルダウンの文字も連動させる
+        function updateTitle(newTitle) {
+            const currentNote = notes.find(n => n.id === currentNoteId);
+            if (currentNote) {
+                currentNote.title = newTitle;
+                // プルダウン上のテキストも更新
+                const opt = noteSelect.querySelector(`option[value="${currentNoteId}"]`);
+                if (opt) opt.textContent = newTitle || "(無題のメモ)";
+            }
+        }
+
+        // メモの切り替え
+        function changeNote(id) {
+            saveCurrentData(); // 切り替える前に今のメモを保存
+            loadNote(id);
+        }
+
+        // 新規メモの作成
+        function createNewNote() {
+            saveCurrentData(); // 今のメモを保存
+            
+            const newId = Date.now().toString();
+            const newNote = {
+                id: newId,
+                title: "新規メモ",
+                content: ""
+            };
+            notes.push(newNote);
+            
+            updateSelectOptions();
+            loadNote(newId);
+        }
+
+        // 現在のメモを削除
+        function deleteCurrentNote() {
+            if (notes.length <= 1) {
+                alert("これ以上メモを削除できません（最低1つのメモが必要です）。");
+                return;
+            }
+
+            if (confirm(`「${titleInput.value}」を削除しますか？`)) {
+                // 現在のID以外のメモを残す
+                notes = notes.filter(n => n.id !== currentNoteId);
+                
+                // 次に表示するメモを配列の先頭にする
+                currentNoteId = notes[0].id;
+                
+                updateSelectOptions();
+                loadNote(currentNoteId);
+                saveCurrentData();
+            }
+        }
+
+        // 出力関係の関数（既存のコードを流用、ファイル名はinputに追従）
+        function exportHTML(){
+            saveCurrentData();
+            const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { "type" : "text/html" });
+            saveFile(URL.createObjectURL(blob), titleInput.value + ".html");
+        }
+
+        function exportPDF() {
+            saveCurrentData();
+            const opt = {
+                margin:       10,
+                filename:     titleInput.value + '.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(editor).save();
+        }
+
+        function exportImage() {
+            saveCurrentData();
+            html2canvas(editor, {
+                useCORS: true,
+                backgroundColor: "#ffffff"
+            }).then(canvas => {
+                saveFile(canvas.toDataURL("image/png"), titleInput.value + ".png");
+            });
+        }
+
+        function saveFile(url, filename) {
+            let link = document.createElement('a'); 
+            link.href = url;
+            link.download = filename;
+            link.click();
+        }
+
+        // 全データ消去
+        function localStorageClearAll(){
+            if(confirm("すべてのメモデータを完全に消去しますか？（初期状態に戻ります）")){
+                localStorage.removeItem('multi_notes');
+                localStorage.removeItem('current_note_id');
+                location.reload(); // ページをリロードして初期化
+            }
+        }
+
+        // 貼り付け時の画像枠調整（既存のまま）
+        document.addEventListener('paste', function (e) {
+            setTimeout(() => {
+                const images = editor.querySelectorAll('img');
+                images.forEach(img => {
+                    if (!img.style.width && !img.getAttribute('width')) {
+                        img.style.maxWidth = "100%"; 
+                    }
+                });
+            }, 10);
+        });
+    </script>
+</body>
+</html>
