@@ -1,4 +1,7 @@
 # tool
+## ブラウザメモ
+[https://koji-yamamoto-github.github.io/tool/BrowserNotes](https://koji-yamamoto-github.github.io/tool/BrowserNotes)
+
 ## CSV電卓
 [https://koji-yamamoto-github.github.io/tool/CSVCalculator](https://koji-yamamoto-github.github.io/tool/CSVCalculator)
 
