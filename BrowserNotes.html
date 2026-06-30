@@ -4,41 +4,105 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browser Notes</title>
-    <link href="https://fonts.googleapis.com/css2?family=Sawarabi+Mincho&display=swap" rel="stylesheet">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="./html2pdf.bundle.min.js"></script>
+    <script src="./html2canvas.min.js"></script>
     
     <style>
         body {
-            font-family: "Sawarabi Mincho", serif;
+            /* オフライン対応：Webフォントに依存せずOS内蔵の明朝体を使用 */
+            font-family: "Sawarabi Mincho", "Hiragino Mincho ProN", "MS Mincho", "Yu Mincho", serif;
             font-size: 16px; 
             line-height: 1.2;
-            padding: 10px;
+            padding: 0;
             margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
 
+        /* 上部コントロールエリア */
         .controls {
-            margin-bottom: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
             display: flex;
             flex-wrap: wrap;
             gap: 5px;
             align-items: center;
         }
 
-        input[type="button"], select {
+        input[type="button"] {
             padding: 10px 15px;
             font-size: 14px;
             cursor: pointer;
             border: 1px solid #ccc;
             background: #eee;
             border-radius: 4px;
-            font-family: "Sawarabi Mincho", serif;
+            font-family: inherit;
         }
 
-        select {
-            background: #fff;
-            max-width: 200px;
+        input[type="button"]:hover {
+            background: #e0e0e0;
+        }
+
+        /* メインのレイアウト（左サイドバー、右エディタ） */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* 左側メモ一覧（サイドバー） */
+        .sidebar {
+            width: 125px;
+            background: #fafafa;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+            padding: 10px 0;
+            box-sizing: border-box;
+            transition: margin-left 0.2s ease; /* 開閉時のアニメーション */
+        }
+
+        /* 【新機能】サイドバーを閉じているときのスタイル */
+        .sidebar.closed {
+            margin-left: -126px; /* 横幅+ボーダー分を左に隠す */
+        }
+
+        .sidebar-title {
+            font-size: 12px;
+            color: #666;
+            padding: 0 10px 5px 10px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 5px;
+        }
+
+        .note-item {
+            padding: 12px 10px;
+            cursor: pointer;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+            word-break: break-all;
+        }
+
+        .note-item:hover {
+            background: #f0f0f0;
+        }
+
+        /* 現在選択中のメモスタイル */
+        .note-item.active {
+            background: #e0e0e0;
+            font-weight: bold;
+        }
+
+        /* 右側エディタエリア */
+        .editor-container {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
         }
 
         #pagetitle {
@@ -48,13 +112,14 @@
             font-size: 16px;
             margin-bottom: 15px;
             border: 1px solid #ccc;
-            font-family: "Sawarabi Mincho", serif;
+            font-family: inherit;
         }
 
         #textarea {
             outline: none;
             width: 100%;
-            min-height: 400px;
+            flex: 1;
+            min-height: 350px;
             padding: 10px 0;
             box-sizing: border-box;
             background-color: #fff;
@@ -69,47 +134,66 @@
             max-width: 100%;
             height: auto;
         }
+
+        hr {
+            border: 0;
+            border-top: 1px solid #eee;
+            margin: 10px 0;
+            width: 100%;
+        }
     </style>
 </head>
 
 <body>
     <div class="controls">
-        <select id="noteSelect" onchange="changeNote(this.value)"></select>
-        <input type="button" value="新規メモ" onclick="createNewNote();"/>
-        <input type="button" value="メモ削除" onclick="deleteCurrentNote();"/>
+        <input type="button" value="一覧表示/非表示" onclick="toggleSidebar();" style="background: #ddd; font-weight: bold;"/>
         
+        <input type="button" value="新規メモ" onclick="createNewNote();"/>
+        <input type="button" value="全データ消去" onclick="localStorageClearAll();"/>
         <input type="button" value="HTML出力" onclick="exportHTML();"/>
         <input type="button" value="PDF出力" onclick="exportPDF();"/>
         <input type="button" value="画像出力(PNG)" onclick="exportImage();"/>
-        <input type="button" value="全データ消去" onclick="localStorageClearAll();"/>
+        <input type="button" value="メモ削除" onclick="deleteCurrentNote();"/>
     </div>
 
-    <hr>
-    <label style="font-size: 12px; color: #666;">保存ファイル名（メモのタイトル）：</label><br>
-    <input type="text" id="pagetitle" value="MyNote" oninput="updateTitle(this.value)">
+    <div class="main-container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-title">メモ一覧</div>
+            <div id="noteList"></div>
+        </div>
 
-    <hr>
-    <div id="textarea" contentEditable="true"></div>
+        <div class="editor-container">
+            <label style="font-size: 12px; color: #666;">保存ファイル名（メモのタイトル）：</label>
+            <input type="text" id="pagetitle" value="MyNote" oninput="updateTitle(this.value)">
+            <hr>
+            <div id="textarea" contentEditable="true"></div>
+        </div>
+    </div>
 
     <script type="text/javascript">
+        const sidebar = document.getElementById('sidebar');
         const editor = document.getElementById('textarea');
         const titleInput = document.getElementById('pagetitle');
-        const noteSelect = document.getElementById('noteSelect');
+        const noteListContainer = document.getElementById('noteList');
 
-        // アプリ内で保持するデータ構造
-        let notes = [];         // メモの配列 [{id: "時間スタンプ", title: "...", content: "..."}, ...]
-        let currentNoteId = ""; // 現在選択中のメモのID
+        let notes = [];         
+        let currentNoteId = ""; 
 
         // ページ読み込み時の処理
         window.addEventListener('load', function(){
             const savedNotes = localStorage.getItem('multi_notes');
             const savedCurrentId = localStorage.getItem('current_note_id');
+            
+            // 【新機能】前回の開閉状態を復元（デフォルトは開いた状態）
+            const sidebarStatus = localStorage.getItem('sidebar_status');
+            if (sidebarStatus === 'closed') {
+                sidebar.classList.add('closed');
+            }
 
             if (savedNotes) {
                 notes = JSON.parse(savedNotes);
             }
 
-            // メモが空、またはデータが不正な場合は初期メモを作成
             if (notes.length === 0) {
                 const defaultId = Date.now().toString();
                 notes.push({
@@ -119,11 +203,10 @@
                 });
                 currentNoteId = defaultId;
             } else {
-                // 前回開いていたメモIDがあればそれを、なければ最初のメモを選択
                 currentNoteId = savedCurrentId && notes.some(n => n.id === savedCurrentId) ? savedCurrentId : notes[0].id;
             }
 
-            updateSelectOptions();
+            updateSidebarList();
             loadNote(currentNoteId);
         });
 
@@ -131,6 +214,17 @@
         window.addEventListener('beforeunload', function() {
             saveCurrentData();
         });
+
+        // 【新機能】サイドバーの開閉を切り替える関数
+        function toggleSidebar() {
+            sidebar.classList.toggle('closed');
+            // 状態を記憶
+            if (sidebar.classList.contains('closed')) {
+                localStorage.setItem('sidebar_status', 'closed');
+            } else {
+                localStorage.setItem('sidebar_status', 'opened');
+            }
+        }
 
         // 現在表示されている内容を配列とlocalStorageに同期する関数
         function saveCurrentData() {
@@ -150,41 +244,59 @@
                 currentNoteId = id;
                 titleInput.value = note.title;
                 editor.innerHTML = note.content;
-                noteSelect.value = id;
+                
+                const items = noteListContainer.querySelectorAll('.note-item');
+                items.forEach(item => {
+                    if (item.getAttribute('data-id') === id) {
+                        item.classList.add('active');
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
             }
         }
 
-        // プルダウンの選択肢を更新する
-        function updateSelectOptions() {
-            noteSelect.innerHTML = "";
+        // サイドバーのメモ一覧を更新する
+        function updateSidebarList() {
+            noteListContainer.innerHTML = "";
             notes.forEach(note => {
-                const opt = document.createElement('option');
-                opt.value = note.id;
-                opt.textContent = note.title || "(無題のメモ)";
-                noteSelect.appendChild(opt);
+                const div = document.createElement('div');
+                div.className = 'note-item';
+                div.setAttribute('data-id', note.id);
+                div.textContent = note.title || "(無題のメモ)";
+                
+                div.addEventListener('click', function() {
+                    changeNote(note.id);
+                });
+
+                if (note.id === currentNoteId) {
+                    div.classList.add('active');
+                }
+                
+                noteListContainer.appendChild(div);
             });
         }
 
-        // メモのタイトルがリアルタイムに変更されたとき、プルダウンの文字も連動させる
+        // メモのタイトルがリアルタイムに変更されたとき、サイドバーの文字も連動させる
         function updateTitle(newTitle) {
             const currentNote = notes.find(n => n.id === currentNoteId);
             if (currentNote) {
                 currentNote.title = newTitle;
-                // プルダウン上のテキストも更新
-                const opt = noteSelect.querySelector(`option[value="${currentNoteId}"]`);
-                if (opt) opt.textContent = newTitle || "(無題のメモ)";
+                const item = noteListContainer.querySelector(`.note-item[data-id="${currentNoteId}"]`);
+                if (item) item.textContent = newTitle || "(無題のメモ)";
             }
         }
 
         // メモの切り替え
         function changeNote(id) {
-            saveCurrentData(); // 切り替える前に今のメモを保存
+            if (id === currentNoteId) return; 
+            saveCurrentData(); 
             loadNote(id);
         }
 
         // 新規メモの作成
         function createNewNote() {
-            saveCurrentData(); // 今のメモを保存
+            saveCurrentData(); 
             
             const newId = Date.now().toString();
             const newNote = {
@@ -194,7 +306,7 @@
             };
             notes.push(newNote);
             
-            updateSelectOptions();
+            updateSidebarList();
             loadNote(newId);
         }
 
@@ -206,19 +318,16 @@
             }
 
             if (confirm(`「${titleInput.value}」を削除しますか？`)) {
-                // 現在のID以外のメモを残す
                 notes = notes.filter(n => n.id !== currentNoteId);
-                
-                // 次に表示するメモを配列の先頭にする
                 currentNoteId = notes[0].id;
                 
-                updateSelectOptions();
+                updateSidebarList();
                 loadNote(currentNoteId);
                 saveCurrentData();
             }
         }
 
-        // 出力関係の関数（既存のコードを流用、ファイル名はinputに追従）
+        // 出力関係の関数
         function exportHTML(){
             saveCurrentData();
             const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
@@ -228,6 +337,10 @@
 
         function exportPDF() {
             saveCurrentData();
+            if (typeof html2pdf === 'undefined') {
+                alert("html2pdf.bundle.min.js が見つからないため、PDF出力できません。");
+                return;
+            }
             const opt = {
                 margin:       10,
                 filename:     titleInput.value + '.pdf',
@@ -240,6 +353,10 @@
 
         function exportImage() {
             saveCurrentData();
+            if (typeof html2canvas === 'undefined') {
+                alert("html2canvas.min.js が見つからないため、画像出力できません。");
+                return;
+            }
             html2canvas(editor, {
                 useCORS: true,
                 backgroundColor: "#ffffff"
@@ -260,11 +377,12 @@
             if(confirm("すべてのメモデータを完全に消去しますか？（初期状態に戻ります）")){
                 localStorage.removeItem('multi_notes');
                 localStorage.removeItem('current_note_id');
-                location.reload(); // ページをリロードして初期化
+                localStorage.removeItem('sidebar_status');
+                location.reload(); 
             }
         }
 
-        // 貼り付け時の画像枠調整（既存のまま）
+        // 貼り付け時の画像枠調整
         document.addEventListener('paste', function (e) {
             setTimeout(() => {
                 const images = editor.querySelectorAll('img');
