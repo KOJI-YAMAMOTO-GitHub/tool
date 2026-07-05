@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>チェキ風メーカー(川柳添えても)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+    <style>
+        body { font-family: 'Kiwi Maru', sans-serif; text-align: center; background: #e0e0e0; padding: 10px; margin: 0; }
+        .controls { background: white; padding: 15px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); display: inline-block; margin-bottom: 15px; text-align: left; max-width: 90%; box-sizing: border-box; }
+        .control-group { margin-bottom: 10px; }
+        label { display: block; font-size: 0.8em; margin-bottom: 3px; color: #666; }
+        input[type="file"], textarea, input[type="text"] { width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-family: inherit; font-size: 1em; }
+        textarea { height: 60px; resize: none; }
+        .btn-group { display: flex; gap: 5px; margin-top: 10px; }
+        button { flex: 1; padding: 12px; background: #333; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
+        button.secondary { background: #888; }
+        
+        #canvas { 
+            background: #fff; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); 
+            border-radius: 5px; 
+            max-width: 500px; 
+            width: 100%;      
+            height: auto; 
+            touch-action: none; 
+            cursor: crosshair;
+        }
+    </style>
+</head>
+<body>
+
+<div class="controls">
+    <div class="control-group"><label>1. 写真選択（最大4枚まで）</label><input type="file" id="upload" accept="image/*" multiple></div>
+    <div class="control-group"><label>2. メッセージ（複数行・自動サイズ調整）</label><textarea id="textInput" placeholder="メッセージを入力"></textarea></div>
+    <div class="control-group"><label>3. 日付</label><input type="text" id="dateInput" placeholder="2026.03.04"></div>
+    <div class="btn-group">
+        <button id="clearDrawBtn" class="secondary">手書きを消去</button>
+        <button id="downloadBtn">画像を保存する</button>
+    </div>
+</div>
+
+<br>
+<canvas id="canvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const upload = document.getElementById('upload');
+    const textInput = document.getElementById('textInput');
+    const dateInput = document.getElementById('dateInput');
+    const clearDrawBtn = document.getElementById('clearDrawBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    const baseSize = 2400; 
+    canvas.width = baseSize;
+    canvas.height = baseSize;
+
+    let currentImages = []; // 最大4枚の画像オブジェクトを保持する配列
+    let isDrawing = false;
+    let drawingData = []; 
+
+    function render() {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const scale = baseSize / 800; 
+        const margin = 60 * scale;
+        const photoBoxW = canvas.width - (margin * 2);
+        const photoBoxH = canvas.height - (240 * scale);
+
+        // 画像の枚数に応じて配置を設定
+        const imgCount = currentImages.length;
+        if (imgCount > 0) {
+            let cols = 1, rows = 1;
+            if (imgCount === 2) { cols = 2; rows = 1; }
+            else if (imgCount >= 3) { cols = 2; rows = 2; }
+
+            const gap = 15 * scale; // 画像同士の隙間
+            const cellW = (photoBoxW - (cols - 1) * gap) / cols;
+            const cellH = (photoBoxH - (rows - 1) * gap) / rows;
+
+            currentImages.forEach((img, index) => {
+                if (index >= 4) return; // 最大4枚まで
+
+                const col = index % cols;
+                const row = Math.floor(index / cols);
+
+                // 各セルの基準左上座標
+                const cellX = margin + col * (cellW + gap);
+                const cellY = margin + row * (cellH + gap);
+
+                // トリミングせずに枠内に収める計算
+                let drawW = cellW;
+                let drawH = cellW / (img.width / img.height);
+                if (drawH > cellH) {
+                    drawH = cellH;
+                    drawW = cellH * (img.width / img.height);
+                }
+
+                // セル内での中央配置座標
+                const x = cellX + (cellW - drawW) / 2;
+                const y = cellY + (cellH - drawH) / 2;
+
+                ctx.drawImage(img, x, y, drawW, drawH);
+            });
+        }
+
+        const text = textInput.value;
+        const footerY = canvas.height - (180 * scale);
+        const footerMaxH = 140 * scale;
+        if (text) {
+            const lines = text.split('\n');
+            let fontSize = 45 * scale;
+            const lineHeightRatio = 1.3;
+            ctx.font = `${fontSize}px 'Kiwi Maru'`;
+            while (fontSize > 15 * scale) {
+                const totalHeight = lines.length * fontSize * lineHeightRatio;
+                const maxWidth = Math.max(...lines.map(l => ctx.measureText(l).width));
+                if (totalHeight <= footerMaxH && maxWidth <= photoBoxW) break;
+                fontSize -= 2 * scale;
+                ctx.font = `${fontSize}px 'Kiwi Maru'`;
+            }
+            ctx.fillStyle = "#444"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            const startY = footerY + (footerMaxH / 2) - ((lines.length - 1) * fontSize * lineHeightRatio) / 2;
+            lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, startY + (i * fontSize * lineHeightRatio)));
+        }
+
+        if (dateInput.value) {
+            ctx.fillStyle = "#666"; ctx.font = `${24 * scale}px 'Kiwi Maru'`;
+            ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+            ctx.fillText(dateInput.value, canvas.width - (40 * scale), canvas.height - (30 * scale));
+        }
+
+        drawFountainPenLines(scale);
+    }
+
+    function drawFountainPenLines(scale) {
+        ctx.fillStyle = "#333344";
+        drawingData.forEach(path => {
+            if (path.length < 2) return;
+            for (let i = 1; i < path.length; i++) {
+                const p1 = path[i - 1];
+                const p2 = path[i];
+                const dist = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+                const time = p2.time - p1.time;
+                const speed = time > 0 ? dist / time : 0;
+                const baseWidth = 4 * scale;
+                const targetLineWidth = Math.max(baseWidth * 0.5, Math.min(baseWidth * 1.5, baseWidth * (1.5 - speed * 0.1)));
+                const targetAlpha = Math.max(0.4, Math.min(1.0, 1.2 - speed * 0.05));
+                const steps = Math.ceil(dist / (1 * scale));
+                for (let j = 0; j < steps; j++) {
+                    const t = j / steps;
+                    const x = p1.x + (p2.x - p1.x) * t;
+                    const y = p1.y + (p2.y - p1.y) * t;
+                    const currentWidth = p1.width + (targetLineWidth - p1.width) * t;
+                    const currentAlpha = p1.alpha + (targetAlpha - p1.alpha) * t;
+                    ctx.globalAlpha = currentAlpha;
+                    ctx.beginPath();
+                    ctx.arc(x, y, currentWidth / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                p2.width = targetLineWidth;
+                p2.alpha = targetAlpha;
+            }
+        });
+        ctx.globalAlpha = 1.0;
+    }
+
+    function getPos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height),
+            time: Date.now(),
+            width: 4 * (baseSize / 800), 
+            alpha: 1.0
+        };
+    }
+
+    function startDraw(e) { isDrawing = true; drawingData.push([getPos(e)]); }
+    function doDraw(e) { if (!isDrawing) return; drawingData[drawingData.length - 1].push(getPos(e)); render(); }
+    function stopDraw() { isDrawing = false; }
+
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', doDraw);
+    window.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('touchstart', (e) => { startDraw(e); e.preventDefault(); }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { doDraw(e); e.preventDefault(); }, {passive: false});
+    canvas.addEventListener('touchend', stopDraw);
+
+    clearDrawBtn.addEventListener('click', () => { drawingData = []; render(); });
+
+    // --- 複数画像対応＆日付自動取得機能 ---
+    upload.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files).slice(0, 4); // 最大4枚に制限
+        if (files.length === 0) return;
+
+        currentImages = []; // 配列をリセット
+
+        // 1枚目の写真から日付を取得
+        const firstFile = files[0];
+        EXIF.getData(firstFile, function() {
+            let dateStr = EXIF.getTag(this, "DateTimeOriginal");
+            if (dateStr) {
+                const parts = dateStr.split(" ")[0].split(":");
+                dateInput.value = `${parts[0]}.${parts[1]}.${parts[2]}`;
+            } else {
+                const lastModified = new Date(firstFile.lastModified);
+                const y = lastModified.getFullYear();
+                const m = String(lastModified.getMonth() + 1).padStart(2, '0');
+                const d = String(lastModified.getDate()).padStart(2, '0');
+                dateInput.value = `${y}.${m}.${d}`;
+            }
+            render();
+        });
+
+        // すべての画像を非同期で読み込む
+        const loadPromises = files.map(file => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        currentImages = await Promise.all(loadPromises);
+        render();
+    });
+
+    textInput.addEventListener('input', render);
+    dateInput.addEventListener('input', render);
+    downloadBtn.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = `fountain_pen_cheki_${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    });
+
+    render();
+</script>
+</body>
+</html>
