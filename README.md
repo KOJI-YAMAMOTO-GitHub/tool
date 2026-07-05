@@ -11,6 +11,9 @@
 ## CSVを表形式に変換
 [https://koji-yamamoto-github.github.io/tool/convertCSVtoTable](https://koji-yamamoto-github.github.io/tool/convertCSVtoTable)
 
+## チェキ風メーカー
+[https://koji-yamamoto-github.github.io/tool/Instax-photo-frame](https://koji-yamamoto-github.github.io/tool/Instax-photo-frame)
+
 ## 画像一括リサイズ・トリミング
 [https://koji-yamamoto-github.github.io/tool/resizeImg](https://koji-yamamoto-github.github.io/tool/resizeImg)
 
