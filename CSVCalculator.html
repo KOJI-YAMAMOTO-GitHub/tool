@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>CSV電卓（ノート機能・タイトル編集付き）</title>
+    <title>CSV電卓</title>
     <style>
         body { 
             font-family: sans-serif; 
@@ -130,7 +130,7 @@
             border-collapse: collapse; 
             width: 100%; 
             background-color: white;
-            table-layout: auto; /* テーブルの幅を自動調整 */
+            table-layout: auto;
         }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
 
@@ -145,7 +145,6 @@
         td:first-child { font-weight: bold; color: #333; }
         tr:nth-child(even) { background-color: #fafafa; }
         
-        /* 変更点：小計、単価、個数の列が絶対に途中で改行されないように設定 */
         th.nowrap, td.nowrap {
             white-space: nowrap;
         }
@@ -252,25 +251,20 @@
                 const li = document.createElement('li');
                 li.className = `note-item ${note.id === currentNoteId ? 'active' : ''}`;
                 
-                // 編集モードでない時だけクリックでノート切り替え
                 li.onclick = () => {
                     if (editingNoteId !== note.id) {
                         switchNote(note.id);
                     }
                 };
 
-                // タイトル部分の生成
                 if (editingNoteId === note.id) {
-                    // 編集中の場合：入力欄を表示
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.className = 'note-title-input';
                     input.value = note.name;
                     
-                    // クリックしてもノート切り替えが走らないようにする
                     input.onclick = (e) => e.stopPropagation();
                     
-                    // エンターキーで確定、エスケープでキャンセル
                     input.onkeydown = (e) => {
                         if (e.key === 'Enter') {
                             saveNoteTitle(note.id, input.value);
@@ -280,23 +274,18 @@
                         }
                     };
                     
-                    // フォーカスが外れたら確定
                     input.onblur = () => {
                         saveNoteTitle(note.id, input.value);
                     };
 
                     li.appendChild(input);
-                    
-                    // 描画後、自動で入力欄にフォーカスを当てる
                     setTimeout(() => input.focus(), 0);
                 } else {
-                    // 通常時：テキストを表示
                     const span = document.createElement('span');
                     span.className = 'note-title-text';
                     span.textContent = note.name;
                     span.title = "ダブルクリックで名前変更";
                     
-                    // ダブルクリックで編集モードに移行
                     span.ondblclick = (e) => {
                         e.stopPropagation();
                         editingNoteId = note.id;
@@ -306,7 +295,6 @@
                     li.appendChild(span);
                 }
 
-                // 削除ボタン
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'delete-note-btn';
                 deleteBtn.innerHTML = '&times;';
@@ -323,7 +311,6 @@
             });
         }
 
-        // タイトルの変更を保存する関数
         function saveNoteTitle(id, newName) {
             const trimmedName = newName.trim();
             if (trimmedName !== '') {
@@ -402,18 +389,31 @@
             loadNoteContent();
         }
 
-        // JSONエクスポート機能
+        // JSONエクスポート機能（バグ修正済み）
         function exportNotesToJSON() {
             saveCurrentNote();
+
+            const currentNote = notes.find(n => n.id === currentNoteId);
+            const noteName = currentNote ? currentNote.name.trim() : 'csv_notes';
 
             const dataStr = JSON.stringify(notes, null, 2);
             const blob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const date = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            
+            // 修正箇所：閉じカッコ記法を正しく直しました
+            const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
+
             const a = document.createElement('a');
             a.href = url;
-            const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
-            a.download = `csv_notes_${today}.json`;
+            a.download = `${noteName}_${timestamp}.json`;
             
             document.body.appendChild(a);
             a.click();
@@ -479,7 +479,6 @@
             const lines = input.split('\n');
             let totalAll = 0;
 
-            // 変更点：小計、単価、個数のヘッダー（th）に class="nowrap" を追加
             let html = `<table>
                 <thead>
                     <tr>
@@ -515,7 +514,6 @@
                     const subtotal = price * quantity;
                     totalAll += subtotal;
 
-                    // 変更点：データ行（td）の小計、単価、個数に class="nowrap" を追加
                     html += `<tr>
                         <td class="nowrap">${subtotal.toLocaleString()}円</td>
                         <td class="nowrap">${price.toLocaleString()}円</td>
