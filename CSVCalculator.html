@@ -130,6 +130,7 @@
             border-collapse: collapse; 
             width: 100%; 
             background-color: white;
+            table-layout: auto; /* テーブルの幅を自動調整 */
         }
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
 
@@ -144,26 +145,63 @@
         td:first-child { font-weight: bold; color: #333; }
         tr:nth-child(even) { background-color: #fafafa; }
         
+        /* 変更点：小計、単価、個数の列が絶対に途中で改行されないように設定 */
+        th.nowrap, td.nowrap {
+            white-space: nowrap;
+        }
+
         .error { color: #dc3545; margin-bottom: 10px; font-weight: bold; }
         
         button.primary-btn { padding: 10px 25px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 1rem; }
         button.primary-btn:hover { background: #0056b3; }
         button.secondary-btn { width: 100%; padding: 8px; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 4px; font-size: 0.9rem; }
         button.secondary-btn:hover { background: #5a6268; }
+
+        /* JSON操作エリアのスタイル */
+        .json-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 5px;
+        }
+        .json-actions button, .json-actions label {
+            flex: 1;
+            padding: 6px;
+            font-size: 0.8rem;
+            text-align: center;
+            background: #e2e8f0;
+            color: #4a5568;
+            border: 1px solid #cbd5e0;
+            border-radius: 4px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        .json-actions button:hover, .json-actions label:hover {
+            background: #cbd5e0;
+        }
+        .json-actions input[type="file"] {
+            display: none;
+        }
     </style>
 </head>
 <body>
 
     <div class="main-container">
-        <!-- サイドバー：ノート機能 -->
         <div class="note-sidebar">
             <h3>ノート一覧</h3>
             <p style="font-size: 0.75rem; color: #666; margin-top: -10px;">※タイトルをダブルクリックで編集</p>
             <button class="secondary-btn" onclick="createNewNote()">＋ 新しいノート</button>
+            
+            <div class="json-actions">
+                <button onclick="exportNotesToJSON()">JSON保存</button>
+                <label>
+                    <input type="file" id="importJsonFile" accept=".json" onchange="importNotesFromJSON(event)">
+                    JSON読込
+                </label>
+            </div>
+
             <ul id="noteList" class="note-list"></ul>
         </div>
 
-        <!-- メインの計算エリア -->
         <div class="calc-area">
             <div class="header-content">
                 <h2>CSV電卓</h2>
@@ -175,7 +213,6 @@
 
             <div id="errorMsg" class="error"></div>
 
-            <!-- 固定表示される合計金額エリア -->
             <div id="summaryBox" class="summary-box">
                 <span>総合計金額: </span>
                 <span id="totalDisplay" class="total-amount">0</span><span> 円</span>
@@ -365,6 +402,62 @@
             loadNoteContent();
         }
 
+        // JSONエクスポート機能
+        function exportNotesToJSON() {
+            saveCurrentNote();
+
+            const dataStr = JSON.stringify(notes, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            a.download = `csv_notes_${today}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // JSONインポート機能
+        function importNotesFromJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedNotes = JSON.parse(e.target.result);
+                    
+                    if (!Array.isArray(importedNotes) || (importedNotes.length > 0 && !('content' in importedNotes[0]))) {
+                        throw new Error('不適切なデータ形式です。');
+                    }
+
+                    if (confirm('JSONデータを読み込みますか？\n（現在のノート一覧は上書きされます）')) {
+                        notes = importedNotes;
+                        const hasCurrentId = notes.some(n => n.id === currentNoteId);
+                        if (!hasCurrentId && notes.length > 0) {
+                            currentNoteId = notes[0].id;
+                        }
+
+                        localStorage.setItem('csv_calculator_notes', JSON.stringify(notes));
+                        localStorage.setItem('csv_calculator_current_id', currentNoteId);
+                        
+                        renderNoteList();
+                        loadNoteContent();
+                        alert('インポートが完了しました。');
+                    }
+                } catch (error) {
+                    alert('JSONファイルの読み込みに失敗しました。ファイルが正しいか確認してください。');
+                }
+            };
+            reader.readAsText(file);
+            
+            event.target.value = '';
+        }
+
         // 計算ロジック
         function processCSV() {
             const input = document.getElementById('csvInput').value.trim();
@@ -386,12 +479,13 @@
             const lines = input.split('\n');
             let totalAll = 0;
 
+            // 変更点：小計、単価、個数のヘッダー（th）に class="nowrap" を追加
             let html = `<table>
                 <thead>
                     <tr>
-                        <th>小計</th>
-                        <th>単価</th>
-                        <th>個数</th>
+                        <th class="nowrap">小計</th>
+                        <th class="nowrap">単価</th>
+                        <th class="nowrap">個数</th>
                         <th>項目</th>
                     </tr>
                 </thead>
@@ -421,10 +515,11 @@
                     const subtotal = price * quantity;
                     totalAll += subtotal;
 
+                    // 変更点：データ行（td）の小計、単価、個数に class="nowrap" を追加
                     html += `<tr>
-                        <td>${subtotal.toLocaleString()}円</td>
-                        <td>${price.toLocaleString()}円</td>
-                        <td>${quantity.toLocaleString()}</td>
+                        <td class="nowrap">${subtotal.toLocaleString()}円</td>
+                        <td class="nowrap">${price.toLocaleString()}円</td>
+                        <td class="nowrap">${quantity.toLocaleString()}</td>
                         <td>${name}</td>
                     </tr>`;
                 });
