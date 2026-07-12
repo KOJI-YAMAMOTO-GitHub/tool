@@ -389,7 +389,7 @@
             loadNoteContent();
         }
 
-        // JSONエクスポート機能（バグ修正済み）
+        // JSONエクスポート機能
         function exportNotesToJSON() {
             saveCurrentNote();
 
@@ -408,7 +408,6 @@
             const minutes = String(now.getMinutes()).padStart(2, '0');
             const seconds = String(now.getSeconds()).padStart(2, '0');
             
-            // 修正箇所：閉じカッコ記法を正しく直しました
             const timestamp = `${year}${month}${date}_${hours}${minutes}${seconds}`;
 
             const a = document.createElement('a');
@@ -498,26 +497,64 @@
                     const columns = trimmedLine.split(',');
                     
                     const rawPrice = columns[0] ? columns[0].trim() : "";
-                    const price = parseInt(rawPrice);
+                    const rawQuantity = columns[1] ? columns[1].trim() : "";
 
-                    if (isNaN(price)) {
-                        throw new Error(`${index + 1}行目の「金額」が正しくありません。`);
+                    // 金額、または個数のどちらかに「-」が指定されているか確認
+                    const isDash = (rawPrice === "-" || rawQuantity === "-");
+
+                    let subtotalStr = "";
+                    let priceStr = "";
+                    let quantityStr = "";
+
+                    if (isDash) {
+                        // 「-」が入力されている場合は、小計を「-」にして総合計の計算からは除外する
+                        subtotalStr = "-";
+                        
+                        // 単価表示の成形
+                        if (rawPrice === "-") {
+                            priceStr = "-";
+                        } else {
+                            const price = parseInt(rawPrice);
+                            if (isNaN(price)) {
+                                throw new Error(`${index + 1}行目の「金額」が正しくありません。`);
+                            }
+                            priceStr = `${price.toLocaleString()}円`;
+                        }
+
+                        // 個数表示の成形
+                        if (rawQuantity === "-") {
+                            quantityStr = "-";
+                        } else {
+                            let quantity = parseInt(rawQuantity);
+                            if (isNaN(quantity)) quantity = 1;
+                            quantityStr = quantity.toLocaleString();
+                        }
+                    } else {
+                        // 通常の数値計算
+                        const price = parseInt(rawPrice);
+                        if (isNaN(price)) {
+                            throw new Error(`${index + 1}行目の「金額」が正しくありません。`);
+                        }
+
+                        let quantity = parseInt(rawQuantity);
+                        if (isNaN(quantity)) quantity = 1;
+
+                        const subtotal = price * quantity;
+                        totalAll += subtotal;
+
+                        subtotalStr = `${subtotal.toLocaleString()}円`;
+                        priceStr = `${price.toLocaleString()}円`;
+                        quantityStr = quantity.toLocaleString();
                     }
 
-                    let rawQuantity = columns[1] ? columns[1].trim() : "";
-                    let quantity = parseInt(rawQuantity);
-                    if (isNaN(quantity)) quantity = 1;
-
-                    let name = columns[2] ? columns[2].trim() : "";
+                    // 項目欄
+                    let name = columns[2] ? columns[2] : "";
                     if (name === "") name = "-";
 
-                    const subtotal = price * quantity;
-                    totalAll += subtotal;
-
                     html += `<tr>
-                        <td class="nowrap">${subtotal.toLocaleString()}円</td>
-                        <td class="nowrap">${price.toLocaleString()}円</td>
-                        <td class="nowrap">${quantity.toLocaleString()}</td>
+                        <td class="nowrap">${subtotalStr}</td>
+                        <td class="nowrap">${priceStr}</td>
+                        <td class="nowrap">${quantityStr}</td>
                         <td>${name}</td>
                     </tr>`;
                 });
