@@ -5,13 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browser Notes</title>
     
-    <script src="./html2pdf.bundle.min.js"></script>
-    <script src="./html2canvas.min.js"></script>
-    
     <style>
         body {
-            /* オフライン対応：Webフォントに依存せずOS内蔵の明朝体を使用 */
-            font-family: "Sawarabi Mincho", "Hiragino Mincho ProN", "MS Mincho", "Yu Mincho", serif;
+            /* フォントの指定を削除し、ブラウザ標準のものを使用 */
             font-size: 16px; 
             line-height: 1.2;
             padding: 0;
@@ -64,7 +60,7 @@
             transition: margin-left 0.2s ease; /* 開閉時のアニメーション */
         }
 
-        /* 【新機能】サイドバーを閉じているときのスタイル */
+        /* サイドバーを閉じているときのスタイル */
         .sidebar.closed {
             margin-left: -126px; /* 横幅+ボーダー分を左に隠す */
         }
@@ -141,6 +137,35 @@
             margin: 10px 0;
             width: 100%;
         }
+
+        /* 【オフラインPDF対応】印刷用のCSS設定 */
+        @media print {
+            body {
+                height: auto;
+                background: #fff;
+            }
+            /* ボタンやサイドバー、タイトル入力欄の枠など不要な要素を非表示 */
+            .controls, .sidebar, label, hr {
+                display: none !important;
+            }
+            #pagetitle {
+                border: none !important;
+                padding: 0 !important;
+                font-size: 24px !important;
+                font-weight: bold !important;
+                margin-bottom: 20px !important;
+            }
+            .main-container, .editor-container {
+                display: block !important;
+                overflow: visible !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            #textarea {
+                min-height: auto !important;
+                padding: 0 !important;
+            }
+        }
     </style>
 </head>
 
@@ -150,9 +175,9 @@
         
         <input type="button" value="新規メモ" onclick="createNewNote();"/>
         <input type="button" value="全データ消去" onclick="localStorageClearAll();"/>
-        <input type="button" value="HTML出力" onclick="exportHTML();"/>
+        <input type="button" value="全体をHTML出力" onclick="exportHTML();"/>
+        <input type="button" value="本文のみHTML出力" onclick="exportTextareaHTML();"/>
         <input type="button" value="PDF出力" onclick="exportPDF();"/>
-        <input type="button" value="画像出力(PNG)" onclick="exportImage();"/>
         <input type="button" value="メモ削除" onclick="deleteCurrentNote();"/>
     </div>
 
@@ -184,7 +209,6 @@
             const savedNotes = localStorage.getItem('multi_notes');
             const savedCurrentId = localStorage.getItem('current_note_id');
             
-            // 【新機能】前回の開閉状態を復元（デフォルトは開いた状態）
             const sidebarStatus = localStorage.getItem('sidebar_status');
             if (sidebarStatus === 'closed') {
                 sidebar.classList.add('closed');
@@ -210,15 +234,12 @@
             loadNote(currentNoteId);
         });
 
-        // ページを閉じる前の保存処理
         window.addEventListener('beforeunload', function() {
             saveCurrentData();
         });
 
-        // 【新機能】サイドバーの開閉を切り替える関数
         function toggleSidebar() {
             sidebar.classList.toggle('closed');
-            // 状態を記憶
             if (sidebar.classList.contains('closed')) {
                 localStorage.setItem('sidebar_status', 'closed');
             } else {
@@ -226,7 +247,6 @@
             }
         }
 
-        // 現在表示されている内容を配列とlocalStorageに同期する関数
         function saveCurrentData() {
             const currentNote = notes.find(n => n.id === currentNoteId);
             if (currentNote) {
@@ -237,7 +257,6 @@
             localStorage.setItem('current_note_id', currentNoteId);
         }
 
-        // 指定したIDのメモを画面に読み込む
         function loadNote(id) {
             const note = notes.find(n => n.id === id);
             if (note) {
@@ -256,7 +275,6 @@
             }
         }
 
-        // サイドバーのメモ一覧を更新する
         function updateSidebarList() {
             noteListContainer.innerHTML = "";
             notes.forEach(note => {
@@ -277,7 +295,6 @@
             });
         }
 
-        // メモのタイトルがリアルタイムに変更されたとき、サイドバーの文字も連動させる
         function updateTitle(newTitle) {
             const currentNote = notes.find(n => n.id === currentNoteId);
             if (currentNote) {
@@ -287,14 +304,12 @@
             }
         }
 
-        // メモの切り替え
         function changeNote(id) {
             if (id === currentNoteId) return; 
             saveCurrentData(); 
             loadNote(id);
         }
 
-        // 新規メモの作成
         function createNewNote() {
             saveCurrentData(); 
             
@@ -310,7 +325,6 @@
             loadNote(newId);
         }
 
-        // 現在のメモを削除
         function deleteCurrentNote() {
             if (notes.length <= 1) {
                 alert("これ以上メモを削除できません（最低1つのメモが必要です）。");
@@ -327,42 +341,51 @@
             }
         }
 
-        // 出力関係の関数
+        // アプリ全体のHTML出力（改行エラーを修正）
         function exportHTML(){
             saveCurrentData();
             const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
             const blob = new Blob([htmlContent], { "type" : "text/html" });
+            saveFile(URL.createObjectURL(blob), titleInput.value + "_app.html");
+        }
+
+        // Textarea（エディタ）内のHTML（リッチテキスト）のみをHTMLファイルとして出力
+        function exportTextareaHTML(){
+            saveCurrentData();
+            const noteContent = editor.innerHTML;
+            
+            // シンプルなHTMLドキュメントの枠組みを作成
+            const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${titleInput.value}</title>
+    <style>
+        body { padding: 20px; line-height: 1.6; }
+        img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <h1>${titleInput.value}</h1>
+    <hr>
+    <div>${noteContent}</div>
+</body>
+</html>`;
+
+            const blob = new Blob([htmlContent], { "type" : "text/html" });
             saveFile(URL.createObjectURL(blob), titleInput.value + ".html");
         }
 
+        // ブラウザ標準の印刷（PDF保存）機能
         function exportPDF() {
             saveCurrentData();
-            if (typeof html2pdf === 'undefined') {
-                alert("html2pdf.bundle.min.js が見つからないため、PDF出力できません。");
-                return;
-            }
-            const opt = {
-                margin:       10,
-                filename:     titleInput.value + '.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            html2pdf().set(opt).from(editor).save();
-        }
-
-        function exportImage() {
-            saveCurrentData();
-            if (typeof html2canvas === 'undefined') {
-                alert("html2canvas.min.js が見つからないため、画像出力できません。");
-                return;
-            }
-            html2canvas(editor, {
-                useCORS: true,
-                backgroundColor: "#ffffff"
-            }).then(canvas => {
-                saveFile(canvas.toDataURL("image/png"), titleInput.value + ".png");
-            });
+            
+            const originalTitle = document.title;
+            document.title = titleInput.value;
+            
+            window.print();
+            
+            document.title = originalTitle;
         }
 
         function saveFile(url, filename) {
@@ -372,7 +395,6 @@
             link.click();
         }
 
-        // 全データ消去
         function localStorageClearAll(){
             if(confirm("すべてのメモデータを完全に消去しますか？（初期状態に戻ります）")){
                 localStorage.removeItem('multi_notes');
@@ -382,7 +404,6 @@
             }
         }
 
-        // 貼り付け時の画像枠調整
         document.addEventListener('paste', function (e) {
             setTimeout(() => {
                 const images = editor.querySelectorAll('img');
