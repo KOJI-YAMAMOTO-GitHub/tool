@@ -397,10 +397,27 @@
 
         function localStorageClearAll(){
             if(confirm("すべてのメモデータを完全に消去しますか？（初期状態に戻ります）")){
+                // ページ離脱時の自動保存イベントを無効化
+                window.removeEventListener('beforeunload', saveCurrentData);
+
+                // ストレージの全データを削除
                 localStorage.removeItem('multi_notes');
                 localStorage.removeItem('current_note_id');
                 localStorage.removeItem('sidebar_status');
-                location.reload(); 
+
+                // 配列と現在のIDを初期化して新規メモを作成
+                notes = [];
+                const defaultId = Date.now().toString();
+                notes.push({
+                    id: defaultId,
+                    title: "MyNote",
+                    content: ""
+                });
+                currentNoteId = defaultId;
+
+                // 画面表示とサイドバーを初期表示に更新
+                updateSidebarList();
+                loadNote(defaultId);
             }
         }
 
