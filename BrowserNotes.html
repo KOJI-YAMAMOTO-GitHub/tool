@@ -123,9 +123,45 @@
             overflow-wrap: break-word;
         }
 
-        #textarea img {
+        /* 画像サイズ変更用ラッパー要素のスタイル */
+        .resizable-img-wrapper {
+            display: inline-block;
+            position: relative;
             max-width: 100%;
+            vertical-align: bottom;
+            margin: 5px;
+            user-select: none;
+        }
+
+        .resizable-img-wrapper img {
+            display: block;
+            width: 100%;
             height: auto;
+            max-width: 100%;
+        }
+
+        /* 選択時の枠線表示 */
+        .resizable-img-wrapper.selected {
+            outline: 2px solid #007bff;
+        }
+
+        /* 右下のサイズ調整ハンドル */
+        .resizable-img-wrapper .resize-handle {
+            display: none;
+            position: absolute;
+            right: -6px;
+            bottom: -6px;
+            width: 12px;
+            height: 12px;
+            background-color: #007bff;
+            border: 1px solid #fff;
+            cursor: se-resize;
+            border-radius: 2px;
+            z-index: 10;
+        }
+
+        .resizable-img-wrapper.selected .resize-handle {
+            display: block;
         }
 
         hr {
@@ -140,8 +176,11 @@
                 height: auto;
                 background: #fff;
             }
-            .controls, .sidebar, label, hr {
+            .controls, .sidebar, label, hr, .resize-handle {
                 display: none !important;
+            }
+            .resizable-img-wrapper.selected {
+                outline: none !important;
             }
             #pagetitle {
                 border: none !important;
@@ -228,6 +267,7 @@
 
             updateSidebarList();
             loadNote(currentNoteId);
+            setupImageResizer();
         });
 
         window.addEventListener('beforeunload', saveCurrentData);
@@ -242,6 +282,7 @@
         }
 
         function saveCurrentData() {
+            deselectAllImages();
             const currentNote = notes.find(n => n.id === currentNoteId);
             if (currentNote) {
                 currentNote.title = titleInput.value;
@@ -266,6 +307,7 @@
                         item.classList.remove('active');
                     }
                 });
+                wrapUnwrappedImages();
             }
         }
 
@@ -344,6 +386,7 @@
 
         function exportTextareaHTML(){
             saveCurrentData();
+            deselectAllImages();
             const noteContent = editor.innerHTML;
             
             const htmlContent = `<!DOCTYPE html>
@@ -353,7 +396,9 @@
     <title>${titleInput.value}</title>
     <style>
         body { padding: 20px; line-height: 1.6; }
-        img { max-width: 100%; height: auto; }
+        .resizable-img-wrapper { display: inline-block; max-width: 100%; margin: 5px; }
+        .resizable-img-wrapper img { display: block; width: 100%; height: auto; max-width: 100%; }
+        .resize-handle { display: none !important; }
     </style>
 </head>
 <body>
@@ -369,6 +414,7 @@
 
         function exportPDF() {
             saveCurrentData();
+            deselectAllImages();
             
             const originalTitle = document.title;
             document.title = titleInput.value;
@@ -395,7 +441,6 @@
 
         // 既存の装飾を解除してプレーンテキスト化する関数
         function clearFormatting() {
-            // テキスト範囲（選択部分）があればその部分だけ、無ければ全体をプレーンテキストに変換
             const selection = window.getSelection();
             if (selection.rangeCount > 0 && !selection.isCollapsed) {
                 const text = selection.toString();
@@ -408,9 +453,8 @@
             saveCurrentData();
         }
 
-        // 貼り付け（ペースト）時に自動でテキスト装飾を取り除く処理
+        // 貼り付け（ペースト）時の処理
         editor.addEventListener('paste', function (e) {
-            // クリップボードに画像が含まれる場合はデフォルトの貼り付け処理を行う
             const items = e.clipboardData && e.clipboardData.items;
             let hasImage = false;
             if (items) {
@@ -422,22 +466,95 @@
                 }
             }
 
-            // 画像の貼り付けでなければ、テキスト属性を取り除いて流し込む
             if (!hasImage) {
                 e.preventDefault();
                 const text = e.clipboardData.getData('text/plain');
                 document.execCommand('insertText', false, text);
             } else {
                 setTimeout(() => {
-                    const images = editor.querySelectorAll('img');
-                    images.forEach(img => {
-                        if (!img.style.width && !img.getAttribute('width')) {
-                            img.style.maxWidth = "100%"; 
-                        }
-                    });
-                }, 10);
+                    wrapUnwrappedImages();
+                    saveCurrentData();
+                }, 20);
             }
         });
+
+        /* --- 画像リサイズ機能関連の処理 --- */
+        function wrapImage(img) {
+            if (img.parentElement && img.parentElement.classList.contains('resizable-img-wrapper')) {
+                return;
+            }
+            const wrapper = document.createElement('span');
+            wrapper.className = 'resizable-img-wrapper';
+            wrapper.contentEditable = "false"; 
+
+            const handle = document.createElement('span');
+            handle.className = 'resize-handle';
+
+            img.parentNode.insertBefore(wrapper, img);
+            wrapper.appendChild(img);
+            wrapper.appendChild(handle);
+        }
+
+        function wrapUnwrappedImages() {
+            const imgs = editor.querySelectorAll('img');
+            imgs.forEach(img => {
+                wrapImage(img);
+            });
+        }
+
+        function deselectAllImages() {
+            const selectedWrappers = editor.querySelectorAll('.resizable-img-wrapper.selected');
+            selectedWrappers.forEach(w => w.classList.remove('selected'));
+        }
+
+        function setupImageResizer() {
+            let activeWrapper = null;
+            let isResizing = false;
+            let startX, startWidth;
+
+            // 画像クリック時の選択切り替え処理
+            editor.addEventListener('click', function(e) {
+                const wrapper = e.target.closest('.resizable-img-wrapper');
+                if (wrapper) {
+                    deselectAllImages();
+                    wrapper.classList.add('selected');
+                } else if (!e.target.classList.contains('resize-handle')) {
+                    deselectAllImages();
+                }
+            });
+
+            // ドラッグリサイズ開始
+            editor.addEventListener('mousedown', function(e) {
+                if (e.target.classList.contains('resize-handle')) {
+                    e.preventDefault();
+                    isResizing = true;
+                    activeWrapper = e.target.closest('.resizable-img-wrapper');
+                    startX = e.clientX;
+                    startWidth = activeWrapper.offsetWidth;
+
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                }
+            });
+
+            function handleMouseMove(e) {
+                if (!isResizing || !activeWrapper) return;
+                const currentX = e.clientX;
+                const diffX = currentX - startX;
+                const newWidth = Math.max(50, startWidth + diffX); 
+                activeWrapper.style.width = newWidth + 'px';
+            }
+
+            function handleMouseUp() {
+                if (isResizing) {
+                    isResizing = false;
+                    activeWrapper = null;
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                    saveCurrentData();
+                }
+            }
+        }
     </script>
 </body>
 </html>
