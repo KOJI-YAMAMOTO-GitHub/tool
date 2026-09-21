@@ -169,6 +169,7 @@
         <input type="button" value="一覧表示/非表示" onclick="toggleSidebar();" style="background: #ddd; font-weight: bold;"/>
         
         <input type="button" value="新規メモ" onclick="createNewNote();"/>
+        <input type="button" value="書式をクリア" onclick="clearFormatting();"/>
         <input type="button" value="本文を消去" onclick="clearTextarea();"/>
         <input type="button" value="全体をHTML出力" onclick="exportHTML();"/>
         <input type="button" value="本文のみHTML出力" onclick="exportTextareaHTML();"/>
@@ -392,15 +393,50 @@
             }
         }
 
-        document.addEventListener('paste', function (e) {
-            setTimeout(() => {
-                const images = editor.querySelectorAll('img');
-                images.forEach(img => {
-                    if (!img.style.width && !img.getAttribute('width')) {
-                        img.style.maxWidth = "100%"; 
+        // 既存の装飾を解除してプレーンテキスト化する関数
+        function clearFormatting() {
+            // テキスト範囲（選択部分）があればその部分だけ、無ければ全体をプレーンテキストに変換
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                const text = selection.toString();
+                document.execCommand('insertText', false, text);
+            } else {
+                if (editor.innerText.trim() !== "" && confirm("本文全体の書式（文字色やサイズ等）をクリアしますか？\n（※画像も消去されます）")) {
+                    editor.innerText = editor.innerText;
+                }
+            }
+            saveCurrentData();
+        }
+
+        // 貼り付け（ペースト）時に自動でテキスト装飾を取り除く処理
+        editor.addEventListener('paste', function (e) {
+            // クリップボードに画像が含まれる場合はデフォルトの貼り付け処理を行う
+            const items = e.clipboardData && e.clipboardData.items;
+            let hasImage = false;
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        hasImage = true;
+                        break;
                     }
-                });
-            }, 10);
+                }
+            }
+
+            // 画像の貼り付けでなければ、テキスト属性を取り除いて流し込む
+            if (!hasImage) {
+                e.preventDefault();
+                const text = e.clipboardData.getData('text/plain');
+                document.execCommand('insertText', false, text);
+            } else {
+                setTimeout(() => {
+                    const images = editor.querySelectorAll('img');
+                    images.forEach(img => {
+                        if (!img.style.width && !img.getAttribute('width')) {
+                            img.style.maxWidth = "100%"; 
+                        }
+                    });
+                }, 10);
+            }
         });
     </script>
 </body>
