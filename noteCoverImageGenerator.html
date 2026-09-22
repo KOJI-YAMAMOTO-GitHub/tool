@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>note見出し画像ジェネレーター</title>
+    <!-- Google Fonts の読み込み -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+1p:wght@700;800;900&family=Noto+Sans+JP:wght@700;900&family=Sawarabi+Mincho&family=Zen+Maru+Gothic:wght@700;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-color: #2bb673;
+            --bg-color: #f4f6f8;
+            --panel-bg: #ffffff;
+            --border-color: #e0e0e0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            line-height: 1.5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        header {
+            grid-column: 1 / -1;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #222;
+        }
+
+        p.subtitle {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* プレビューエリア */
+        .preview-card {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .canvas-container {
+            width: 100%;
+            max-width: 800px;
+            position: relative;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-radius: 4px;
+            overflow: hidden;
+            background-color: #fff;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: grab;
+        }
+
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        .canvas-instruction {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* コントロールエリア */
+        .controls-card {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        .section {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 4px;
+        }
+
+        input[type="text"], select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        /* ボタン */
+        .btn {
+            display: inline-block;
+            width: 100%;
+            padding: 10px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #249a61;
+        }
+
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ccc;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            margin-top: 5px;
+        }
+
+        .btn-secondary:hover {
+            background-color: #e0e0e0;
+        }
+
+        /* アコーディオン風テキスト入力 */
+        .text-tab-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 6px;
+            background: #eee;
+            border: 1px solid #ccc;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .tab-btn.active {
+            background: #fff;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .text-panel {
+            display: none;
+            background: #fff;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 0 0 4px 4px;
+        }
+
+        .text-panel.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>note 見出し画像ジェネレーター</h1>
+        <p class="subtitle">1280×670px のnote推奨サイズ画像を簡単に作成・微調整できます</p>
+    </header>
+
+    <!-- プレビューエリア -->
+    <div class="preview-card">
+        <div class="canvas-container">
+            <canvas id="noteCanvas" width="1280" height="670"></canvas>
+        </div>
+        <div class="canvas-instruction">
+            💡 キャンバス上で文字や背景画像を直接ドラッグして移動できます
+        </div>
+    </div>
+
+    <!-- 操作パネル -->
+    <div class="controls-card">
+        
+        <!-- 画像設定 -->
+        <div class="section">
+            <div class="section-title">1. 画像設定</div>
+            <div class="form-group">
+                <label for="imageLoader">画像を選択</label>
+                <input type="file" id="imageLoader" accept="image/*">
+            </div>
+            <div class="form-group">
+                <label for="imgScale">画像倍率 (ズーム): <span id="imgScaleVal">100%</span></label>
+                <input type="range" id="imgScale" min="20" max="300" value="100">
+            </div>
+            <div class="form-group">
+                <label for="imgX">画像位置 X: <span id="imgXVal">0</span></label>
+                <input type="range" id="imgX" min="-1280" max="1280" value="0">
+            </div>
+            <div class="form-group">
+                <label for="imgY">画像位置 Y: <span id="imgYVal">0</span></label>
+                <input type="range" id="imgY" min="-670" max="670" value="0">
+            </div>
+            <button class="btn btn-secondary" id="resetImgBtn">画像を中央・全体表示に戻す</button>
+        </div>
+
+        <!-- テキスト設定 -->
+        <div class="section">
+            <div class="section-title">2. テキスト編集 (最大3つ)</div>
+            
+            <div class="text-tab-buttons">
+                <button class="tab-btn active" onclick="switchTextTab(0)">文字 1</button>
+                <button class="tab-btn" onclick="switchTextTab(1)">文字 2</button>
+                <button class="tab-btn" onclick="switchTextTab(2)">文字 3</button>
+            </div>
+
+            <!-- テキスト1 -->
+            <div class="text-panel active" id="textPanel0">
+                <div class="form-group">
+                    <label>テキスト</label>
+                    <input type="text" class="text-input" data-index="0" value="多摩湖へ">
+                </div>
+                <div class="form-group">
+                    <label>フォント</label>
+                    <select class="text-font" data-index="0">
+                        <option value="'M PLUS 1p', sans-serif" selected>M PLUS 1p (ゴシック)</option>
+                        <option value="'Noto Sans JP', sans-serif">Noto Sans JP (標準)</option>
+                        <option value="'Zen Maru Gothic', sans-serif">Zen Maru Gothic (丸ゴシック)</option>
+                        <option value="'Sawarabi Mincho', serif">Sawarabi Mincho (明朝)</option>
+                        <option value="'Dela Gothic One', cursive">Dela Gothic One (極太)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>サイズ: <span class="size-val">120</span>px</label>
+                    <input type="range" class="text-size" data-index="0" min="20" max="250" value="120">
+                </div>
+                <div class="form-group">
+                    <label>回転: <span class="rotate-val">0</span>°</label>
+                    <input type="range" class="text-rotate" data-index="0" min="-180" max="180" value="0">
+                </div>
+            </div>
+
+            <!-- テキスト2 -->
+            <div class="text-panel" id="textPanel1">
+                <div class="form-group">
+                    <label>テキスト</label>
+                    <input type="text" class="text-input" data-index="1" value="サイクリング＆ポタリング">
+                </div>
+                <div class="form-group">
+                    <label>フォント</label>
+                    <select class="text-font" data-index="1">
+                        <option value="'M PLUS 1p', sans-serif" selected>M PLUS 1p (ゴシック)</option>
+                        <option value="'Noto Sans JP', sans-serif">Noto Sans JP (標準)</option>
+                        <option value="'Zen Maru Gothic', sans-serif">Zen Maru Gothic (丸ゴシック)</option>
+                        <option value="'Sawarabi Mincho', serif">Sawarabi Mincho (明朝)</option>
+                        <option value="'Dela Gothic One', cursive">Dela Gothic One (極太)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>サイズ: <span class="size-val">75</span>px</label>
+                    <input type="range" class="text-size" data-index="1" min="20" max="250" value="75">
+                </div>
+                <div class="form-group">
+                    <label>回転: <span class="rotate-val">-10</span>°</label>
+                    <input type="range" class="text-rotate" data-index="1" min="-180" max="180" value="-10">
+                </div>
+            </div>
+
+            <!-- テキスト3 -->
+            <div class="text-panel" id="textPanel2">
+                <div class="form-group">
+                    <label>テキスト</label>
+                    <input type="text" class="text-input" data-index="2" value="">
+                </div>
+                <div class="form-group">
+                    <label>フォント</label>
+                    <select class="text-font" data-index="2">
+                        <option value="'M PLUS 1p', sans-serif" selected>M PLUS 1p (ゴシック)</option>
+                        <option value="'Noto Sans JP', sans-serif">Noto Sans JP (標準)</option>
+                        <option value="'Zen Maru Gothic', sans-serif">Zen Maru Gothic (丸ゴシック)</option>
+                        <option value="'Sawarabi Mincho', serif">Sawarabi Mincho (明朝)</option>
+                        <option value="'Dela Gothic One', cursive">Dela Gothic One (極太)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>サイズ: <span class="size-val">50</span>px</label>
+                    <input type="range" class="text-size" data-index="2" min="20" max="250" value="50">
+                </div>
+                <div class="form-group">
+                    <label>回転: <span class="rotate-val">0</span>°</label>
+                    <input type="range" class="text-rotate" data-index="2" min="-180" max="180" value="0">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 出力 -->
+        <div class="section">
+            <button class="btn" id="downloadBtn">画像をダウンロード</button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const CANVAS_WIDTH = 1280;
+    const CANVAS_HEIGHT = 670;
+
+    const canvas = document.getElementById('noteCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 状態管理
+    let bgImage = null;
+    let imgConfig = {
+        scale: 1.0,
+        x: 0,
+        y: 0,
+        baseWidth: 0,
+        baseHeight: 0
+    };
+
+    let texts = [
+        { text: 'あいうえお', font: "'M PLUS 1p', sans-serif", size: 120, rotate: 0, x: 100, y: 180 },
+        { text: 'ABCDE', font: "'M PLUS 1p', sans-serif", size: 75, rotate: -10, x: 50, y: 520 },
+        { text: '', font: "'M PLUS 1p', sans-serif", size: 50, rotate: 0, x: 200, y: 300 }
+    ];
+
+    let activeDragItem = null; // 'image' または テキストインデックス (0, 1, 2)
+    let dragStartX = 0;
+    let dragStartY = 0;
+
+    // 初期サンプル画像の生成
+    function createSampleImage() {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = CANVAS_WIDTH;
+        tempCanvas.height = CANVAS_HEIGHT;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        const grad = tempCtx.createLinearGradient(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        grad.addColorStop(0, '#a8c0ff');
+        grad.addColorStop(1, '#3f2b96');
+        tempCtx.fillStyle = grad;
+        tempCtx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        tempCtx.strokeStyle = 'rgba(255,255,255,0.2)';
+        tempCtx.lineWidth = 4;
+        for (let i = 0; i < CANVAS_WIDTH; i += 100) {
+            tempCtx.beginPath(); tempCtx.moveTo(i, 0); tempCtx.lineTo(i, CANVAS_HEIGHT); tempCtx.stroke();
+        }
+        for (let j = 0; j < CANVAS_HEIGHT; j += 100) {
+            tempCtx.beginPath(); tempCtx.moveTo(0, j); tempCtx.lineTo(CANVAS_WIDTH, j); tempCtx.stroke();
+        }
+
+        const img = new Image();
+        img.src = tempCanvas.toDataURL();
+        img.onload = () => {
+            bgImage = img;
+            resetImagePosition();
+            draw();
+        };
+    }
+
+    // 描画メイン処理
+    function draw() {
+        ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // 1. 余白用の白背景
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // 2. 画像描画
+        if (bgImage) {
+            const drawW = imgConfig.baseWidth * imgConfig.scale;
+            const drawH = imgConfig.baseHeight * imgConfig.scale;
+            ctx.drawImage(bgImage, imgConfig.x, imgConfig.y, drawW, drawH);
+        }
+
+        // 3. 白30%透明（不透明度0.3）のオーバーレイ
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // 4. テキスト描画
+        texts.forEach((item, index) => {
+            if (!item.text.trim()) return;
+
+            ctx.save();
+            ctx.translate(item.x, item.y);
+            ctx.rotate((item.rotate * Math.PI) / 180);
+
+            ctx.font = `900 ${item.size}px ${item.font}`;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabet';
+
+            // 影（浮いている効果）
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetX = 4;
+            ctx.shadowOffsetY = 6;
+
+            // 白色テキスト描画
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(item.text, 0, 0);
+
+            ctx.restore();
+        });
+    }
+
+    // 画像位置のリセット
+    function resetImagePosition() {
+        if (!bgImage) return;
+        const scale = Math.max(CANVAS_WIDTH / bgImage.width, CANVAS_HEIGHT / bgImage.height);
+        imgConfig.baseWidth = bgImage.width;
+        imgConfig.baseHeight = bgImage.height;
+        imgConfig.scale = scale;
+        imgConfig.x = (CANVAS_WIDTH - bgImage.width * scale) / 2;
+        imgConfig.y = (CANVAS_HEIGHT - bgImage.height * scale) / 2;
+
+        updateImageControls();
+    }
+
+    function updateImageControls() {
+        document.getElementById('imgScale').value = Math.round(imgConfig.scale * 100);
+        document.getElementById('imgScaleVal').innerText = `${Math.round(imgConfig.scale * 100)}%`;
+        document.getElementById('imgX').value = Math.round(imgConfig.x);
+        document.getElementById('imgXVal').innerText = Math.round(imgConfig.x);
+        document.getElementById('imgY').value = Math.round(imgConfig.y);
+        document.getElementById('imgYVal').innerText = Math.round(imgConfig.y);
+    }
+
+    // イベントリスナー設定
+    document.getElementById('imageLoader').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                bgImage = img;
+                resetImagePosition();
+                draw();
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    // 画像コントロール
+    document.getElementById('imgScale').addEventListener('input', (e) => {
+        imgConfig.scale = e.target.value / 100;
+        document.getElementById('imgScaleVal').innerText = `${e.target.value}%`;
+        draw();
+    });
+
+    document.getElementById('imgX').addEventListener('input', (e) => {
+        imgConfig.x = parseFloat(e.target.value);
+        document.getElementById('imgXVal').innerText = e.target.value;
+        draw();
+    });
+
+    document.getElementById('imgY').addEventListener('input', (e) => {
+        imgConfig.y = parseFloat(e.target.value);
+        document.getElementById('imgYVal').innerText = e.target.value;
+        draw();
+    });
+
+    document.getElementById('resetImgBtn').addEventListener('click', () => {
+        resetImagePosition();
+        draw();
+    });
+
+    // テキストコントロール連動
+    document.querySelectorAll('.text-input').forEach(el => {
+        el.addEventListener('input', (e) => {
+            const idx = e.target.dataset.index;
+            texts[idx].text = e.target.value;
+            draw();
+        });
+    });
+
+    document.querySelectorAll('.text-font').forEach(el => {
+        el.addEventListener('change', (e) => {
+            const idx = e.target.dataset.index;
+            texts[idx].font = e.target.value;
+            document.fonts.ready.then(() => draw());
+        });
+    });
+
+    document.querySelectorAll('.text-size').forEach(el => {
+        el.addEventListener('input', (e) => {
+            const idx = e.target.dataset.index;
+            texts[idx].size = parseInt(e.target.value, 10);
+            e.target.parentElement.querySelector('.size-val').innerText = e.target.value;
+            draw();
+        });
+    });
+
+    document.querySelectorAll('.text-rotate').forEach(el => {
+        el.addEventListener('input', (e) => {
+            const idx = e.target.dataset.index;
+            texts[idx].rotate = parseInt(e.target.value, 10);
+            e.target.parentElement.querySelector('.rotate-val').innerText = e.target.value;
+            draw();
+        });
+    });
+
+    // タブ切り替え
+    window.switchTextTab = function(index) {
+        document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+            btn.classList.toggle('active', i === index);
+        });
+        document.querySelectorAll('.text-panel').forEach((panel, i) => {
+            panel.classList.toggle('active', i === index);
+        });
+    };
+
+    // Canvas上での座標計算
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = CANVAS_WIDTH / rect.width;
+        const scaleY = CANVAS_HEIGHT / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    // テキストヒット判定ロジック
+    function isPointerOverText(clickX, clickY, item) {
+        if (!item.text.trim()) return false;
+
+        ctx.save();
+        ctx.font = `900 ${item.size}px ${item.font}`;
+        const metrics = ctx.measureText(item.text);
+        const width = metrics.width;
+        const height = item.size; 
+        ctx.restore();
+
+        // テキストの原点（item.x, item.y）相対座標に変換し、逆回転させて矩形内判定
+        const dx = clickX - item.x;
+        const dy = clickY - item.y;
+        const rad = (-item.rotate * Math.PI) / 180;
+        
+        const localX = dx * Math.cos(rad) - dy * Math.sin(rad);
+        const localY = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+        // textBaseline = 'alphabet' のため、概ね -height 〜 +height/4 の範囲
+        return localX >= 0 && localX <= width && localY >= -height && localY <= height * 0.3;
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        const coords = getCanvasCoords(e);
+        dragStartX = coords.x;
+        dragStartY = coords.y;
+
+        activeDragItem = null;
+
+        // 手前に表示されているテキストからヒット判定
+        for (let i = texts.length - 1; i >= 0; i--) {
+            if (isPointerOverText(coords.x, coords.y, texts[i])) {
+                activeDragItem = i;
+                switchTextTab(i);
+                return;
+            }
+        }
+
+        // テキストがクリックされなければ背景画像の操作
+        activeDragItem = 'image';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (activeDragItem === null) return;
+        const coords = getCanvasCoords(e);
+        const dx = coords.x - dragStartX;
+        const dy = coords.y - dragStartY;
+
+        if (activeDragItem === 'image') {
+            imgConfig.x += dx;
+            imgConfig.y += dy;
+            updateImageControls();
+        } else if (typeof activeDragItem === 'number') {
+            texts[activeDragItem].x += dx;
+            texts[activeDragItem].y += dy;
+        }
+
+        dragStartX = coords.x;
+        dragStartY = coords.y;
+        draw();
+    });
+
+    window.addEventListener('mouseup', () => {
+        activeDragItem = null;
+    });
+
+    // ダウンロード機能
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = 'note-header.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    });
+
+    // 初期ロード待ち処理
+    document.fonts.ready.then(() => {
+        createSampleImage();
+    });
+</script>
+
+</body>
+</html>
