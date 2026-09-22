@@ -23,3 +23,5 @@
 ## gemma4検証
 [https://koji-yamamoto-github.github.io/tool/gemma-4-offline](https://koji-yamamoto-github.github.io/tool/gemma-4-offline)
 
+## noteのカバー画像生成
+[https://koji-yamamoto-github.github.io/tool/noteCoverImageGenerator](https://koji-yamamoto-github.github.io/tool/noteCoverImageGenerator)
