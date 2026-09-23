@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>note見出し画像ジェネレーター</title>
     <!-- Google Fonts の読み込み -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -79,6 +79,7 @@
             border-radius: 4px;
             overflow: hidden;
             background-color: #fff;
+            touch-action: none; /* スマホでのスクロール誤動作を防ぐ */
         }
 
         canvas {
@@ -86,6 +87,7 @@
             width: 100%;
             height: auto;
             cursor: grab;
+            touch-action: none;
         }
 
         canvas:active {
@@ -181,7 +183,7 @@
             background-color: #e0e0e0;
         }
 
-        /* アコーディオン風テキスト入力 */
+        /* タブ */
         .text-tab-buttons {
             display: flex;
             gap: 5px;
@@ -232,7 +234,7 @@
             <canvas id="noteCanvas" width="1280" height="670"></canvas>
         </div>
         <div class="canvas-instruction">
-            💡 キャンバス上で文字や背景画像を直接ドラッグして移動できます
+            💡 キャンバス上で文字や背景画像を直接ドラッグ・タッチ操作で移動できます
         </div>
     </div>
 
@@ -377,16 +379,15 @@
     };
 
     let texts = [
-        { text: 'あいうえお', font: "'M PLUS 1p', sans-serif", size: 120, rotate: 0, x: 100, y: 180 },
-        { text: 'ABCDE', font: "'M PLUS 1p', sans-serif", size: 75, rotate: -10, x: 50, y: 520 },
+        { text: '多摩湖へ', font: "'M PLUS 1p', sans-serif", size: 120, rotate: 0, x: 100, y: 180 },
+        { text: 'サイクリング＆ポタリング', font: "'M PLUS 1p', sans-serif", size: 75, rotate: -10, x: 50, y: 520 },
         { text: '', font: "'M PLUS 1p', sans-serif", size: 50, rotate: 0, x: 200, y: 300 }
     ];
 
-    let activeDragItem = null; // 'image' または テキストインデックス (0, 1, 2)
+    let activeDragItem = null; 
     let dragStartX = 0;
     let dragStartY = 0;
 
-    // 初期サンプル画像の生成
     function createSampleImage() {
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = CANVAS_WIDTH;
@@ -417,27 +418,22 @@
         };
     }
 
-    // 描画メイン処理
     function draw() {
         ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // 1. 余白用の白背景
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // 2. 画像描画
         if (bgImage) {
             const drawW = imgConfig.baseWidth * imgConfig.scale;
             const drawH = imgConfig.baseHeight * imgConfig.scale;
             ctx.drawImage(bgImage, imgConfig.x, imgConfig.y, drawW, drawH);
         }
 
-        // 3. 白30%透明（不透明度0.3）のオーバーレイ
         ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
         ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-        // 4. テキスト描画
-        texts.forEach((item, index) => {
+        texts.forEach((item) => {
             if (!item.text.trim()) return;
 
             ctx.save();
@@ -448,13 +444,11 @@
             ctx.textAlign = 'left';
             ctx.textBaseline = 'alphabet';
 
-            // 影（浮いている効果）
             ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
             ctx.shadowBlur = 12;
             ctx.shadowOffsetX = 4;
             ctx.shadowOffsetY = 6;
 
-            // 白色テキスト描画
             ctx.fillStyle = '#ffffff';
             ctx.fillText(item.text, 0, 0);
 
@@ -462,7 +456,6 @@
         });
     }
 
-    // 画像位置のリセット
     function resetImagePosition() {
         if (!bgImage) return;
         const scale = Math.max(CANVAS_WIDTH / bgImage.width, CANVAS_HEIGHT / bgImage.height);
@@ -484,7 +477,6 @@
         document.getElementById('imgYVal').innerText = Math.round(imgConfig.y);
     }
 
-    // イベントリスナー設定
     document.getElementById('imageLoader').addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -502,7 +494,6 @@
         reader.readAsDataURL(file);
     });
 
-    // 画像コントロール
     document.getElementById('imgScale').addEventListener('input', (e) => {
         imgConfig.scale = e.target.value / 100;
         document.getElementById('imgScaleVal').innerText = `${e.target.value}%`;
@@ -526,7 +517,6 @@
         draw();
     });
 
-    // テキストコントロール連動
     document.querySelectorAll('.text-input').forEach(el => {
         el.addEventListener('input', (e) => {
             const idx = e.target.dataset.index;
@@ -561,7 +551,6 @@
         });
     });
 
-    // タブ切り替え
     window.switchTextTab = function(index) {
         document.querySelectorAll('.tab-btn').forEach((btn, i) => {
             btn.classList.toggle('active', i === index);
@@ -571,18 +560,26 @@
         });
     };
 
-    // Canvas上での座標計算
-    function getCanvasCoords(e) {
+    // イベント用の座標取得関数（マウス・タッチ共通）
+    function getPointerCoords(e) {
         const rect = canvas.getBoundingClientRect();
         const scaleX = CANVAS_WIDTH / rect.width;
         const scaleY = CANVAS_HEIGHT / rect.height;
+        
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        }
+
         return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
         };
     }
 
-    // テキストヒット判定ロジック
     function isPointerOverText(clickX, clickY, item) {
         if (!item.text.trim()) return false;
 
@@ -593,7 +590,6 @@
         const height = item.size; 
         ctx.restore();
 
-        // テキストの原点（item.x, item.y）相対座標に変換し、逆回転させて矩形内判定
         const dx = clickX - item.x;
         const dy = clickY - item.y;
         const rad = (-item.rotate * Math.PI) / 180;
@@ -601,18 +597,18 @@
         const localX = dx * Math.cos(rad) - dy * Math.sin(rad);
         const localY = dx * Math.sin(rad) + dy * Math.cos(rad);
 
-        // textBaseline = 'alphabet' のため、概ね -height 〜 +height/4 の範囲
-        return localX >= 0 && localX <= width && localY >= -height && localY <= height * 0.3;
+        // タッチでの操作性を考慮し少し判定領域を広め(-height*1.2 〜 +height*0.5)に設定
+        return localX >= -20 && localX <= width + 20 && localY >= -height * 1.2 && localY <= height * 0.5;
     }
 
-    canvas.addEventListener('mousedown', (e) => {
-        const coords = getCanvasCoords(e);
+    // ドラッグ開始処理（マウス/タッチ共通）
+    function handleStart(e) {
+        const coords = getPointerCoords(e);
         dragStartX = coords.x;
         dragStartY = coords.y;
 
         activeDragItem = null;
 
-        // 手前に表示されているテキストからヒット判定
         for (let i = texts.length - 1; i >= 0; i--) {
             if (isPointerOverText(coords.x, coords.y, texts[i])) {
                 activeDragItem = i;
@@ -621,13 +617,16 @@
             }
         }
 
-        // テキストがクリックされなければ背景画像の操作
         activeDragItem = 'image';
-    });
+    }
 
-    window.addEventListener('mousemove', (e) => {
+    // ドラッグ中処理（マウス/タッチ共通）
+    function handleMove(e) {
         if (activeDragItem === null) return;
-        const coords = getCanvasCoords(e);
+        
+        if (e.cancelable) e.preventDefault(); // タッチ時のスクロールを防止
+
+        const coords = getPointerCoords(e);
         const dx = coords.x - dragStartX;
         const dy = coords.y - dragStartY;
 
@@ -643,11 +642,28 @@
         dragStartX = coords.x;
         dragStartY = coords.y;
         draw();
-    });
+    }
 
-    window.addEventListener('mouseup', () => {
+    // ドラッグ終了処理（マウス/タッチ共通）
+    function handleEnd() {
         activeDragItem = null;
-    });
+    }
+
+    // マウスイベント設定
+    canvas.addEventListener('mousedown', handleStart);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+
+    // タッチイベント設定（iPad・スマホ対応）
+    canvas.addEventListener('touchstart', (e) => {
+        handleStart(e);
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        handleMove(e);
+    }, { passive: false });
+
+    window.addEventListener('touchend', handleEnd);
 
     // ダウンロード機能
     document.getElementById('downloadBtn').addEventListener('click', () => {
@@ -657,7 +673,6 @@
         link.click();
     });
 
-    // 初期ロード待ち処理
     document.fonts.ready.then(() => {
         createSampleImage();
     });
