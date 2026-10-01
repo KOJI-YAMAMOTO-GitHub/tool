@@ -20,6 +20,9 @@
 ## 画像からPDF作成
 [https://koji-yamamoto-github.github.io/tool/IMGtoPDF](https://koji-yamamoto-github.github.io/tool/IMGtoPDF)
 
+## 動画をGIFに変換
+[https://koji-yamamoto-github.github.io/tool/video-to-gif](https://koji-yamamoto-github.github.io/tool/video-to-gif)
+
 ## gemma4検証
 [https://koji-yamamoto-github.github.io/tool/gemma-4-offline](https://koji-yamamoto-github.github.io/tool/gemma-4-offline)
 
