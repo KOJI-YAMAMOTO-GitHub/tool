@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>動画 → GIF変換（完全オフライン）</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:24px;background:#f3f4f6;color:#222;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif}
+.container{max-width:920px;margin:auto;background:#fff;border-radius:14px;padding:24px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+h1{margin:0 0 8px;font-size:26px}.lead{margin:0 0 22px;color:#666;line-height:1.7}
+.drop{border:2px dashed #aaa;border-radius:12px;padding:34px 16px;text-align:center;background:#fafafa;cursor:pointer;transition:.15s}
+.drop:hover,.drop.dragover{background:#eef5ff;border-color:#2563eb}.drop-icon{font-size:42px}.drop-main{font-weight:700;margin-top:6px}.drop-sub{font-size:13px;color:#777;margin-top:6px}#fileInput{display:none}
+.file-name{margin-top:12px;font-weight:700;word-break:break-all}.meta{color:#666;font-size:14px;margin-top:4px}
+video{display:none;width:100%;max-height:460px;margin-top:18px;background:#000;border-radius:8px}
+.settings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:22px}
+.field label{display:block;font-weight:700;margin-bottom:7px}.field input{width:100%;padding:10px;border:1px solid #ccc;border-radius:7px;font-size:16px}
+button{border:0;border-radius:8px;padding:12px 18px;font-size:16px;font-weight:700;cursor:pointer}.primary{width:100%;margin-top:22px;background:#2563eb;color:#fff}.primary:hover{background:#1d4ed8}.primary:disabled{background:#aaa;cursor:not-allowed}
+.progress-wrap{display:none;margin-top:22px}.bar{height:18px;background:#e5e7eb;border-radius:9px;overflow:hidden}.bar>div{height:100%;width:0%;background:#2563eb;transition:width .1s}.status{text-align:center;margin-top:9px;color:#555;min-height:1.4em}
+.result{display:none;margin-top:28px;padding-top:24px;border-top:1px solid #ddd}.result h2{margin:0 0 14px;font-size:21px}#gifPreview{display:block;max-width:100%;border-radius:8px;background:#eee}.download{margin-top:14px;background:#16a34a;color:#fff}.download:hover{background:#15803d}
+.note{margin-top:22px;padding:14px 16px;background:#f8fafc;border-radius:8px;color:#555;font-size:14px;line-height:1.75}
+.error{display:none;margin-top:14px;padding:12px 14px;border-radius:8px;background:#fef2f2;color:#991b1b;white-space:pre-wrap;line-height:1.6}
+@media(max-width:640px){.settings{grid-template-columns:1fr}.container{padding:18px}h1{font-size:23px}}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎬 動画 → GIF変換</h1>
+  <p class="lead">外部ライブラリ・CDN・インターネット通信を使わない、1ファイル完結版です。読み込んだ動画はブラウザ内だけで処理します。</p>
+
+  <div class="drop" id="dropArea">
+    <div class="drop-icon">📁</div>
+    <div class="drop-main">クリックして動画を選択</div>
+    <div class="drop-sub">または動画をここへドラッグ＆ドロップ</div>
+    <input id="fileInput" type="file" accept="video/*">
+  </div>
+
+  <div class="file-name" id="fileName"></div>
+  <div class="meta" id="videoMeta"></div>
+  <video id="video" controls playsinline></video>
+
+  <div class="settings">
+    <div class="field"><label for="startTime">開始時間（秒）</label><input id="startTime" type="number" min="0" step="0.1" value="0"></div>
+    <div class="field"><label for="endTime">終了時間（秒）</label><input id="endTime" type="number" min="0.1" step="0.1" value="5"></div>
+    <div class="field"><label for="width">GIF幅（px）</label><input id="width" type="number" min="80" max="960" step="10" value="480"></div>
+    <div class="field"><label for="fps">FPS</label><input id="fps" type="number" min="1" max="20" step="1" value="10"></div>
+  </div>
+
+  <button class="primary" id="convertBtn" disabled>GIFに変換する</button>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="bar"><div id="progressBar"></div></div>
+    <div class="status" id="status">準備中…</div>
+  </div>
+
+  <div class="error" id="errorBox"></div>
+
+  <div class="result" id="result">
+    <h2>完成したGIF</h2>
+    <img id="gifPreview" alt="生成したGIF">
+    <button class="download" id="downloadBtn">⬇ GIFを保存</button>
+  </div>
+
+  <div class="note">
+    <strong>おすすめ設定：</strong> 5秒・幅480px・10FPS。<br>
+    GIFは最大256色です。また、変換処理はブラウザ内で行うため、長い動画や大きなサイズでは処理に時間がかかります。
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const fileInput = $("fileInput");
+const dropArea = $("dropArea");
+const fileName = $("fileName");
+const videoMeta = $("videoMeta");
+const video = $("video");
+const startInput = $("startTime");
+const endInput = $("endTime");
+const widthInput = $("width");
+const fpsInput = $("fps");
+const convertBtn = $("convertBtn");
+const progressWrap = $("progressWrap");
+const progressBar = $("progressBar");
+const status = $("status");
+const errorBox = $("errorBox");
+const result = $("result");
+const gifPreview = $("gifPreview");
+const downloadBtn = $("downloadBtn");
+
+let selectedFile = null;
+let gifBlob = null;
+let previewUrl = null;
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function setProgress(p,msg){progressBar.style.width=Math.max(0,Math.min(100,p))+"%";if(msg)status.textContent=msg;}
+function showError(err){errorBox.style.display="block";errorBox.textContent="GIFの作成中にエラーが発生しました。\n\n"+(err&&err.message?err.message:String(err));}
+function clearError(){errorBox.style.display="none";errorBox.textContent="";}
+
+function selectFile(file){
+  if(!file) return;
+  if(!file.type || !file.type.startsWith("video/")){alert("動画ファイルを選択してください。");return;}
+  selectedFile=file;
+  if(previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl=URL.createObjectURL(file);
+  video.src=previewUrl;
+  video.style.display="block";
+  fileName.textContent="選択中: "+file.name;
+  videoMeta.textContent="動画情報を読み込み中…";
+  convertBtn.disabled=true;
+  result.style.display="none";
+  clearError();
+}
+
+dropArea.addEventListener("click",()=>fileInput.click());
+fileInput.addEventListener("change",()=>selectFile(fileInput.files[0]));
+dropArea.addEventListener("dragover",e=>{e.preventDefault();dropArea.classList.add("dragover")});
+dropArea.addEventListener("dragleave",()=>dropArea.classList.remove("dragover"));
+dropArea.addEventListener("drop",e=>{e.preventDefault();dropArea.classList.remove("dragover");selectFile(e.dataTransfer.files[0])});
+
+video.addEventListener("loadedmetadata",()=>{
+  const d=video.duration;
+  if(Number.isFinite(d)){
+    startInput.value="0";
+    endInput.value=Math.min(5,d).toFixed(1);
+    videoMeta.textContent=`${video.videoWidth} × ${video.videoHeight}px / ${formatTime(d)}`;
+    convertBtn.disabled=false;
+  }else{
+    videoMeta.textContent="動画の長さを取得できませんでした。";
+  }
+});
+video.addEventListener("error",()=>{
+  convertBtn.disabled=true;
+  videoMeta.textContent="このブラウザでは動画を再生できません。";
+});
+function formatTime(sec){const m=Math.floor(sec/60),s=sec-m*60;return `${m}:${s.toFixed(1).padStart(4,"0")}`;}
+
+function make332Palette(){
+  const p=new Array(256);
+  for(let i=0;i<256;i++){
+    const r=(i>>5)&7, g=(i>>2)&7, b=i&3;
+    p[i]=[Math.round(r*255/7),Math.round(g*255/7),Math.round(b*255/3)];
+  }
+  return p;
+}
+
+function rgbaToIndexed(rgba,w,h){
+  const out=new Uint8Array(w*h);
+  let q=0;
+  for(let i=0;i<rgba.length;i+=4){
+    const r=rgba[i],g=rgba[i+1],b=rgba[i+2];
+    out[q++]=((r>>5)<<5)|((g>>5)<<2)|(b>>6);
+  }
+  return out;
+}
+
+class ByteWriter{
+  constructor(){this.a=[];}
+  byte(v){this.a.push(v&255);}
+  le16(v){this.byte(v);this.byte(v>>8);}
+  str(s){for(let i=0;i<s.length;i++)this.byte(s.charCodeAt(i));}
+  bytes(arr){for(let i=0;i<arr.length;i++)this.byte(arr[i]);}
+  finish(){return new Uint8Array(this.a);}
+}
+
+class BitWriter{
+  constructor(){this.out=[];this.buf=0;this.bits=0;}
+  write(code,size){this.buf|=(code<<this.bits);this.bits+=size;while(this.bits>=8){this.out.push(this.buf&255);this.buf>>>=8;this.bits-=8;}}
+  flush(){if(this.bits>0){this.out.push(this.buf&255);this.buf=0;this.bits=0;}return this.out;}
+}
+
+/*
+ * 安全性を優先したGIF LZW。
+ * 辞書が大きくなる前にCLEARを入れるため、コード幅が9bitのまま安定します。
+ * 圧縮率は高くありませんが、GIFデコーダーとの互換性を優先しています。
+ */
+function lzwEncodeLiteral(data){
+  const CLEAR=256, END=257, CODE_SIZE=9;
+  const bw=new BitWriter();
+  const CHUNK=200;
+  let pos=0;
+  while(pos<data.length){
+    bw.write(CLEAR,CODE_SIZE);
+    const n=Math.min(CHUNK,data.length-pos);
+    for(let i=0;i<n;i++)bw.write(data[pos++],CODE_SIZE);
+  }
+  bw.write(END,CODE_SIZE);
+  return bw.flush();
+}
+
+class GifWriter{
+  constructor(width,height,palette,fps){
+    this.width=width;this.height=height;this.palette=palette;this.fps=fps;this.w=new ByteWriter();
+    this.writeHeader();
+    this.writeLoopExtension();
+  }
+  writeHeader(){
+    const w=this.w;
+    w.str("GIF89a");
+    w.le16(this.width);w.le16(this.height);
+    w.byte(0xF7); // global color table, 8-bit color resolution, 256 colors
+    w.byte(0);     // background index
+    w.byte(0);     // aspect ratio
+    for(const c of this.palette){w.byte(c[0]);w.byte(c[1]);w.byte(c[2]);}
+  }
+  writeLoopExtension(){
+    const w=this.w;
+    w.byte(0x21);w.byte(0xFF);w.byte(11);w.str("NETSCAPE2.0");
+    w.byte(3);w.byte(1);w.le16(0);w.byte(0);
+  }
+  addFrame(indexed,delayCs){
+    const w=this.w;
+    w.byte(0x21);w.byte(0xF9);w.byte(4);
+    w.byte(0x04); // disposal method 1
+    w.le16(delayCs);
+    w.byte(0); // transparent index, unused
+    w.byte(0);
+    w.byte(0x2C); // image descriptor
+    w.le16(0);w.le16(0);w.le16(this.width);w.le16(this.height);
+    w.byte(0); // use global color table
+    w.byte(8); // minimum LZW code size
+    const compressed=lzwEncodeLiteral(indexed);
+    let pos=0;
+    while(pos<compressed.length){
+      const n=Math.min(255,compressed.length-pos);
+      w.byte(n);
+      for(let i=0;i<n;i++)w.byte(compressed[pos+i]);
+      pos+=n;
+    }
+    w.byte(0);
+  }
+  finish(){this.w.byte(0x3B);return this.w.finish();}
+}
+
+function seekVideo(v,time){
+  return new Promise((resolve,reject)=>{
+    const target=Math.max(0,Math.min(time,v.duration));
+    if(Math.abs(v.currentTime-target)<0.0005){setTimeout(resolve,0);return;}
+    let done=false;
+    const cleanup=()=>{v.removeEventListener("seeked",ok);v.removeEventListener("error",bad);};
+    const ok=()=>{if(done)return;done=true;cleanup();resolve();};
+    const bad=()=>{if(done)return;done=true;cleanup();reject(new Error("動画のシークに失敗しました。"));};
+    v.addEventListener("seeked",ok,{once:true});
+    v.addEventListener("error",bad,{once:true});
+    try{v.currentTime=target;}catch(e){bad();}
+  });
+}
+
+async function makeGif(){
+  if(!selectedFile)throw new Error("動画が選択されていません。");
+  const start=Number(startInput.value), end=Number(endInput.value);
+  const width=Math.floor(Number(widthInput.value)), fps=Math.floor(Number(fpsInput.value));
+  if(!Number.isFinite(start)||!Number.isFinite(end)||!Number.isFinite(width)||!Number.isFinite(fps))throw new Error("設定値を確認してください。");
+  if(start<0||end<=start)throw new Error("終了時間は開始時間より後にしてください。");
+  if(end>video.duration+0.001)throw new Error(`終了時間が動画の長さを超えています。（動画: ${video.duration.toFixed(2)}秒）`);
+  if(width<80||width>960)throw new Error("GIF幅は80～960pxで指定してください。");
+  if(fps<1||fps>20)throw new Error("FPSは1～20で指定してください。");
+  if(end-start>20){if(!confirm("20秒を超えるGIFは非常に大きくなる可能性があります。続行しますか？"))return null;}
+
+  const height=Math.max(1,Math.round(width*video.videoHeight/video.videoWidth));
+  if(height>960)throw new Error("計算後のGIF高さが960pxを超えています。GIF幅を小さくしてください。");
+  const frameCount=Math.max(1,Math.floor((end-start)*fps)+1);
+  const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});
+  const palette=make332Palette();
+  const gif=new GifWriter(width,height,palette,fps);
+  const delayCs=Math.max(1,Math.round(100/fps));
+
+  for(let i=0;i<frameCount;i++){
+    const t=Math.min(end,start+i/fps);
+    await seekVideo(video,t);
+    ctx.drawImage(video,0,0,width,height);
+    const rgba=ctx.getImageData(0,0,width,height).data;
+    const indexed=rgbaToIndexed(rgba,width,height);
+    gif.addFrame(indexed,delayCs);
+    setProgress(5+(i+1)/frameCount*90,`フレーム ${i+1} / ${frameCount}`);
+    await sleep(0);
+  }
+  setProgress(98,"GIFファイルを仕上げています…");
+  return gif.finish();
+}
+
+convertBtn.addEventListener("click",async()=>{
+  clearError();
+  convertBtn.disabled=true;
+  result.style.display="none";
+  progressWrap.style.display="block";
+  setProgress(0,"準備中…");
+  if(gifPreview.src){gifPreview.removeAttribute("src");}
+  try{
+    const bytes=await makeGif();
+    if(!bytes)return;
+    gifBlob=new Blob([bytes],{type:"image/gif"});
+    const url=URL.createObjectURL(gifBlob);
+    gifPreview.src=url;
+    result.style.display="block";
+    setProgress(100,`変換完了（${(gifBlob.size/1024/1024).toFixed(2)} MB）`);
+  }catch(err){
+    console.error(err);
+    showError(err);
+    status.textContent="変換を中止しました。";
+  }finally{
+    convertBtn.disabled=false;
+  }
+});
+
+downloadBtn.addEventListener("click",()=>{
+  if(!gifBlob)return;
+  const url=URL.createObjectURL(gifBlob);
+  const a=document.createElement("a");a.href=url;a.download=(selectedFile?.name||"converted").replace(/\.[^.]+$/i,"")+".gif";
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+
+window.addEventListener("beforeunload",()=>{if(previewUrl)URL.revokeObjectURL(previewUrl);});
+</script>
+</body>
+</html>
