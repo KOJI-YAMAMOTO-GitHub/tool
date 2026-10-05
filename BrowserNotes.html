@@ -212,6 +212,7 @@
         <input type="button" value="本文を消去" onclick="clearTextarea();"/>
         <input type="button" value="全体をHTML出力" onclick="exportHTML();"/>
         <input type="button" value="本文のみHTML出力" onclick="exportTextareaHTML();"/>
+        <input type="button" value="本文を画像ダウンロード" onclick="exportTextareaImage();"/>
         <input type="button" value="PDF出力" onclick="exportPDF();"/>
         <input type="button" value="メモ削除" onclick="deleteCurrentNote();"/>
     </div>
@@ -384,16 +385,21 @@
             saveFile(URL.createObjectURL(blob), titleInput.value + "_app.html");
         }
 
-        function exportTextareaHTML(){
-            saveCurrentData();
-            deselectAllImages();
+        function buildTextareaHTML(){
             const noteContent = editor.innerHTML;
-            
-            const htmlContent = `<!DOCTYPE html>
+            const safeTitle = titleInput.value
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+
+            // 「本文のみHTML出力」と画像化の両方で、まったく同じHTMLを使用します。
+            return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
-    <title>${titleInput.value}</title>
+    <title>${safeTitle}</title>
     <style>
         body { padding: 20px; line-height: 1.6; }
         .resizable-img-wrapper { display: inline-block; max-width: 100%; margin: 5px; }
@@ -402,16 +408,204 @@
     </style>
 </head>
 <body>
-    <h1>${titleInput.value}</h1>
+    <h1>${safeTitle}</h1>
     <hr>
     <div>${noteContent}</div>
 </body>
 </html>`;
+        }
 
+        function exportTextareaHTML(){
+            saveCurrentData();
+            deselectAllImages();
+            const htmlContent = buildTextareaHTML();
             const blob = new Blob([htmlContent], { "type" : "text/html" });
             saveFile(URL.createObjectURL(blob), titleInput.value + ".html");
         }
 
+        // 「本文のみHTML出力」で作られるHTMLを実際にブラウザでレイアウトし、
+        // その表示結果をJPEGにします。本文を手作業で再配置する方式ではありません。
+        async function exportTextareaImage(){
+            saveCurrentData();
+            deselectAllImages();
+
+            const htmlContent = buildTextareaHTML();
+            const iframe = document.createElement('iframe');
+            iframe.setAttribute('aria-hidden', 'true');
+            iframe.style.position = 'fixed';
+            iframe.style.left = '-100000px';
+            iframe.style.top = '0';
+            iframe.style.width = Math.max(320, editor.clientWidth || 900) + 'px';
+            iframe.style.height = '100px';
+            iframe.style.border = '0';
+            iframe.style.visibility = 'hidden';
+            document.body.appendChild(iframe);
+
+            try {
+                iframe.srcdoc = htmlContent;
+                await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error('HTMLの読み込みがタイムアウトしました。')), 15000);
+                    iframe.addEventListener('load', () => { clearTimeout(timer); resolve(); }, {once:true});
+                });
+
+                const doc = iframe.contentDocument;
+                const win = iframe.contentWindow;
+                if (!doc || !doc.body) throw new Error('HTMLを画像化する領域を取得できませんでした。');
+
+                const images = Array.from(doc.images);
+                await Promise.all(images.map(img => {
+                    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                    return new Promise(resolve => {
+                        img.addEventListener('load', resolve, {once:true});
+                        img.addEventListener('error', resolve, {once:true});
+                    });
+                }));
+
+                // 画像の自然サイズがレイアウトへ反映されるまで再計算。
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+                const bodyRect = doc.body.getBoundingClientRect();
+                const width = Math.ceil(Math.max(doc.documentElement.scrollWidth, doc.body.scrollWidth, bodyRect.right));
+                const height = Math.ceil(Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight, bodyRect.bottom));
+                const scale = 2;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, width * scale);
+                canvas.height = Math.max(1, height * scale);
+                const ctx = canvas.getContext('2d', {alpha:false});
+                ctx.scale(scale, scale);
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, width, height);
+
+                const all = [];
+                const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+                let node;
+                while ((node = walker.nextNode())) all.push(node);
+
+                const viewport = {x:0, y:0};
+                const rectOf = el => {
+                    const r = el.getBoundingClientRect();
+                    return {left:r.left-viewport.x, top:r.top-viewport.y, width:r.width, height:r.height};
+                };
+
+                // 背景・罫線を先に描画。
+                for (const item of all) {
+                    if (item.nodeType !== Node.ELEMENT_NODE) continue;
+                    const el = item;
+                    if (el.tagName === 'IMG') continue;
+                    const cs = win.getComputedStyle(el);
+                    const r = rectOf(el);
+                    if (r.width <= 0 || r.height <= 0) continue;
+                    if (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') {
+                        ctx.fillStyle = cs.backgroundColor;
+                        ctx.fillRect(r.left, r.top, r.width, r.height);
+                    }
+                    drawBorder(ctx, r, cs, 'Top');
+                    drawBorder(ctx, r, cs, 'Right');
+                    drawBorder(ctx, r, cs, 'Bottom');
+                    drawBorder(ctx, r, cs, 'Left');
+                }
+
+                // HTMLのDOM順に、文字と画像を描画。
+                for (const item of all) {
+                    if (item.nodeType === Node.ELEMENT_NODE) {
+                        const el = item;
+                        if (el.tagName === 'IMG') {
+                            const r = rectOf(el);
+                            if (r.width <= 0 || r.height <= 0) continue;
+                            try {
+                                const source = await imageForCanvas(el);
+                                if (source) ctx.drawImage(source, r.left, r.top, r.width, r.height);
+                            } catch(e) {
+                                // 画像1枚の失敗で本文全体の出力を止めない。
+                            }
+                        }
+                    } else if (item.nodeType === Node.TEXT_NODE) {
+                        drawTextNode(ctx, win, item, rectOf);
+                    }
+                }
+
+                const jpegBlob = await new Promise((resolve, reject) => {
+                    canvas.toBlob(b => b ? resolve(b) : reject(new Error('JPEGの生成に失敗しました。')), 'image/jpeg', 0.92);
+                });
+
+                // メタデータは付加せず、HTMLの表示結果をそのままJPEGとして保存
+                saveFile(URL.createObjectURL(jpegBlob), titleInput.value + '.jpg');
+            } catch (err) {
+                console.error(err);
+                alert('画像の作成中にエラーが発生しました。\n' + (err && err.message ? err.message : err));
+            } finally {
+                iframe.remove();
+            }
+        }
+
+        function drawBorder(ctx, r, cs, side){
+            const width = parseFloat(cs['border' + side + 'Width']) || 0;
+            const style = cs['border' + side + 'Style'];
+            if (!width || style === 'none') return;
+            ctx.fillStyle = cs['border' + side + 'Color'] || '#000';
+            if (side === 'Top') ctx.fillRect(r.left, r.top, r.width, width);
+            if (side === 'Bottom') ctx.fillRect(r.left, r.top + r.height - width, r.width, width);
+            if (side === 'Left') ctx.fillRect(r.left, r.top, width, r.height);
+            if (side === 'Right') ctx.fillRect(r.left + r.width - width, r.top, width, r.height);
+        }
+
+        function drawTextNode(ctx, win, node, rectOf){
+            const text = node.nodeValue || '';
+            if (!text.trim() && !/[\u3000]/.test(text)) return;
+            const parent = node.parentElement;
+            if (!parent) return;
+            const cs = win.getComputedStyle(parent);
+            if (cs.display === 'none' || cs.visibility === 'hidden') return;
+
+            const font = [cs.fontStyle, cs.fontVariant, cs.fontWeight, cs.fontSize, cs.fontFamily].join(' ');
+            ctx.font = font;
+            ctx.fillStyle = cs.color || '#000';
+            ctx.textBaseline = 'alphabetic';
+            ctx.textAlign = 'left';
+
+            const range = win.document.createRange();
+            const lines = new Map();
+            for (let i=0; i<text.length; i++) {
+                range.setStart(node, i);
+                range.setEnd(node, i+1);
+                const rs = Array.from(range.getClientRects());
+                if (!rs.length) continue;
+                const r = rs[0];
+                const top = Math.round(r.top * 10) / 10;
+                if (!lines.has(top)) lines.set(top, []);
+                lines.get(top).push({char:text[i], left:r.left, width:r.width});
+            }
+
+            const fs = parseFloat(cs.fontSize) || 16;
+            const lineHeight = cs.lineHeight === 'normal' ? fs * 1.2 : (parseFloat(cs.lineHeight) || fs * 1.2);
+            for (const [top, chars] of lines) {
+                if (!chars.length) continue;
+                const str = chars.map(x => x.char).join('');
+                let left = chars[0].left;
+                // Rangeの位置はiframeのviewport基準なので、そのまま画像座標へ移す。
+                const baseline = top + (lineHeight + fs) / 2;
+                ctx.fillText(str, left, baseline);
+            }
+        }
+
+        async function imageForCanvas(el){
+            const src = el.currentSrc || el.src;
+            if (!src) return null;
+            const image = new Image();
+            image.decoding = 'sync';
+            return new Promise((resolve, reject) => {
+                image.onload = () => resolve(image);
+                image.onerror = reject;
+                image.src = src;
+            });
+        }
+
+        function getEditorPlainText(){
+            return (editor.innerText || editor.textContent || '').replace(/\r\n/g, '\n');
+        }
+
+        
         function exportPDF() {
             saveCurrentData();
             deselectAllImages();
