@@ -8,13 +8,6 @@
     :root { 
       --text: currentColor; 
       --border: #888888;
-      --modal-bg: #ffffff;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --modal-bg: #1e1e1e;
-      }
     }
 
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); margin: 0; padding: 12px; }
@@ -60,13 +53,16 @@
     .pass-btn-group { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; box-sizing: border-box; background-color: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); }
-    .modal-content { width: 100%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); background-color: var(--modal-bg); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    
+    /* モーダル背景色・文字色を常に白背景＋黒文字に固定 */
+    .modal-content { width: 100%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; border: 1px solid #ccc; background-color: #ffffff !important; color: #333333 !important; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .modal-content input, .modal-content textarea, .modal-content select, .modal-content button { color: #333333; border-color: #888888; }
 
-    .memo-body { border: 1px solid var(--border); padding: 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; font-size: 0.95rem; line-height: 1.5; margin-top: 10px; margin-bottom: 16px; }
+    .memo-body { border: 1px solid #ccc; padding: 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; font-size: 0.95rem; line-height: 1.5; margin-top: 10px; margin-bottom: 16px; background-color: #fafafa; color: #333333; }
 
     .backup-alert { border: 1px solid var(--border); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; }
 
-    #toast { visibility: hidden; min-width: 200px; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 0.9rem; border: 1px solid var(--border); background-color: var(--modal-bg); color: var(--text); }
+    #toast { visibility: hidden; min-width: 200px; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 0.9rem; border: 1px solid #888; background-color: #ffffff; color: #333333; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
     #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 1.7s; }
 
     .info-link { font-size: 0.85rem; text-decoration: underline; cursor: pointer; display: inline-block; margin-top: 12px; opacity: 0.9; }
@@ -75,7 +71,7 @@
 
     /* ラジオボタン用スタイリング */
     .radio-group { margin: 16px 0; display: flex; flex-direction: column; gap: 10px; }
-    .radio-label { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer; width: auto; margin: 0; }
+    .radio-label { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer; width: auto; margin: 0; color: #333333; }
     .radio-label input[type="radio"] { width: auto; margin: 0; cursor: pointer; }
 
     @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 30px; opacity: 1; } }
@@ -466,7 +462,7 @@
     let vaultData = [];
     let derivedKey = null;
     let idleTimer = null;
-    let pendingFileContent = null; // インポート一時保持用
+    let pendingFileContent = null;
     const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
     async function getKey(password) {
@@ -786,7 +782,6 @@
       showToast(i18n[currentLang].msgExported);
     };
 
-    // CSV選択時に一時保持し、モーダルを表示
     document.getElementById('fileInput').onchange = (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -796,7 +791,7 @@
         document.getElementById('importModal').classList.remove('hidden');
       };
       reader.readAsText(file);
-      e.target.value = ''; // ファイル選択をリセット
+      e.target.value = '';
     };
 
     document.getElementById('cancelImportBtn').onclick = () => {
@@ -804,7 +799,6 @@
       document.getElementById('importModal').classList.add('hidden');
     };
 
-    // モーダル内の「実行する」ボタン処理
     document.getElementById('confirmImportBtn').onclick = async () => {
       if (!pendingFileContent) return;
 
