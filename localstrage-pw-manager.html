@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="appTitle">ローカルストレージ・パスワードマネージャー</title>
+  <style>
+    :root { 
+      --text: currentColor; 
+      --border: #888888;
+      --modal-bg: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --modal-bg: #1e1e1e;
+      }
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: var(--text); margin: 0; padding: 12px; }
+    
+    .container { width: 100%; max-width: 100%; margin: 0 auto; box-sizing: border-box; }
+    .card { border-radius: 12px; padding: 16px; margin-bottom: 16px; box-sizing: border-box; border: 1px solid var(--border); position: relative; }
+    
+    h1, h2, h3 { margin-top: 0; font-size: 1.25rem; }
+    input, textarea, button, select { width: 100%; padding: 10px 12px; margin: 6px 0; border-radius: 8px; border: 1px solid var(--border); box-sizing: border-box; font-size: 0.95rem; font-family: inherit; color: inherit; background: transparent; }
+    textarea { resize: vertical; min-height: 60px; }
+    button { font-weight: bold; cursor: pointer; border: 1px solid var(--border); }
+    .hidden { display: none !important; }
+    .flex { display: flex; gap: 8px; }
+
+    /* 言語切り替えセレクトボックス（右上に配置） */
+    .lang-selector-wrap { position: absolute; top: 12px; right: 12px; width: auto; z-index: 10; }
+    .lang-selector { width: auto; padding: 4px 8px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; }
+
+    /* アコーディオンデザイン */
+    details { border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border); overflow: hidden; }
+    summary { font-weight: bold; padding: 12px 16px; cursor: pointer; user-select: none; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; }
+    .accordion-content { padding: 12px 16px; border-top: 1px solid var(--border); }
+
+    /* テーブル・カード切り替えデザイン */
+    .responsive-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .responsive-table th, .responsive-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+    .responsive-table th { font-weight: 600; white-space: nowrap; opacity: 0.8; }
+    
+    @media (max-width: 768px) {
+      .responsive-table thead { display: none; }
+      .responsive-table, .responsive-table tbody, .responsive-table tr, .responsive-table td { display: block; width: 100%; box-sizing: border-box; }
+      .responsive-table tr { margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+      .responsive-table td { border-bottom: 1px solid var(--border); padding: 6px 0; display: flex; justify-content: space-between; align-items: center; word-break: break-all; }
+      .responsive-table td:last-child { border-bottom: none; }
+      .responsive-table td::before { content: attr(data-label); font-weight: bold; opacity: 0.8; font-size: 0.85rem; padding-right: 8px; flex-shrink: 0; }
+    }
+
+    .link-badge { display: inline-block; padding: 2px 4px; font-weight: bold; font-size: 0.85rem; text-decoration: underline; color: inherit; border: none; }
+    .memo-btn { cursor: pointer; padding: 2px 4px; font-size: 0.85rem; font-weight: bold; display: inline-block; border: none; text-decoration: underline; }
+    .copyable { cursor: pointer; padding: 2px 4px; display: inline-block; word-break: break-all; border: none; text-decoration: underline; }
+
+    .pass-val-box { margin-bottom: 6px; font-family: monospace; font-size: 0.95rem; word-break: break-all; }
+    .pass-btn-group { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; box-sizing: border-box; background-color: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); }
+    .modal-content { width: 100%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); background-color: var(--modal-bg); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+
+    .memo-body { border: 1px solid var(--border); padding: 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; font-size: 0.95rem; line-height: 1.5; margin-top: 10px; margin-bottom: 16px; }
+
+    .backup-alert { border: 1px solid var(--border); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; }
+
+    #toast { visibility: hidden; min-width: 200px; text-align: center; border-radius: 8px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 0.9rem; border: 1px solid var(--border); background-color: var(--modal-bg); color: var(--text); }
+    #toast.show { visibility: visible; animation: fadein 0.3s, fadeout 0.3s 1.7s; }
+
+    .info-link { font-size: 0.85rem; text-decoration: underline; cursor: pointer; display: inline-block; margin-top: 12px; opacity: 0.9; }
+    .feature-list { padding-left: 20px; font-size: 0.9rem; line-height: 1.6; }
+    .feature-list li { margin-bottom: 12px; }
+
+    @keyframes fadein { from { bottom: 0; opacity: 0; } to { bottom: 30px; opacity: 1; } }
+    @keyframes fadeout { from { bottom: 30px; opacity: 1; } to { bottom: 0; opacity: 0; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 1. ロック画面 -->
+    <div id="authCard" class="card" style="max-width: 400px; margin: 40px auto; text-align: center; padding-top: 48px;">
+      <div class="lang-selector-wrap">
+        <select class="lang-selector" onchange="changeLanguage(this.value)">
+          <option value="ja">日本語</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <h1 id="authTitle" data-i18n="authTitle">パスワード管理</h1>
+      <p id="authDesc" style="opacity:0.8; font-size:0.9rem;" data-i18n="authDesc">マスターパスワードを入力してください。</p>
+      <input type="password" id="masterPassword" placeholder="マスターパスワード" data-i18n-placeholder="masterPasswordPlaceholder" style="text-align: left;">
+      <button id="unlockBtn" data-i18n="unlockBtn">解除</button>
+      
+      <div style="margin-top: 10px;">
+        <span class="info-link" id="openInfoModalBtn" data-i18n="openInfoModalBtn">このアプリの特長と安全上の注意</span>
+      </div>
+
+      <button id="resetBtn" class="secondary" style="margin-top: 20px; font-size: 0.85rem;" data-i18n="resetBtn">初期化</button>
+    </div>
+
+    <!-- 2. メイン画面 -->
+    <div id="appCard" class="card hidden" style="padding-top: 16px;">
+      <div class="lang-selector-wrap">
+        <select class="lang-selector" onchange="changeLanguage(this.value)">
+          <option value="ja">日本語</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <!-- バックアップリマインダー通知 -->
+      <div id="backupAlert" class="backup-alert hidden" style="margin-top: 36px;">
+        <div>
+          <strong data-i18n="backupAlertTitle">バックアップのお願い</strong><br>
+          <span id="backupAlertMsg" data-i18n="backupAlertMsg">前回のバックアップから1ヶ月以上経過しています。データ保護のためCSV書き出しを行ってください。</span>
+        </div>
+      </div>
+
+      <!-- 上部アコーディオン1: 新規追加 (margin-topを大きめにしてボタン被りを回避) -->
+      <details id="addAccordion" style="margin-top: 40px;">
+        <summary data-i18n="addAccordionTitle">新規パスワードの追加</summary>
+        <div class="accordion-content">
+          <input type="text" id="siteName" placeholder="サイト名 / サービス名" data-i18n-placeholder="siteNamePlaceholder">
+          <input type="text" id="siteUrl" placeholder="URL (例: https://example.com)" data-i18n-placeholder="siteUrlPlaceholder">
+          <input type="text" id="userId" placeholder="ユーザー名 / ID / メール" data-i18n-placeholder="userIdPlaceholder">
+          <input type="text" id="sitePassword" placeholder="パスワード" data-i18n-placeholder="sitePasswordPlaceholder">
+          <textarea id="siteMemo" placeholder="メモ（任意：セキュリティ質問など）" data-i18n-placeholder="siteMemoPlaceholder"></textarea>
+          <button id="addBtn" data-i18n="addBtn">保存する</button>
+        </div>
+      </details>
+
+      <!-- 上部アコーディオン2: CSV入出力 -->
+      <details>
+        <summary data-i18n="csvAccordionTitle">パスワードのバックアップ・インポート</summary>
+        <div class="accordion-content">
+          <p id="lastBackupText" style="font-size:0.85rem; opacity:0.8; margin-top:0; margin-bottom:8px;">前回のバックアップ: 未実施</p>
+          <div class="flex">
+            <button id="exportBtn" class="secondary" data-i18n="exportBtn">バックアップ</button>
+            <button id="importBtn" class="secondary" onclick="document.getElementById('fileInput').click()" data-i18n="importBtn">インポート</button>
+          </div>
+          <input type="file" id="fileInput" accept=".csv" class="hidden">
+        </div>
+      </details>
+
+      <!-- メインコンテンツ: 一覧表示と検索・操作ヘッダー -->
+      <div style="margin-top: 16px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h2 style="margin: 0;" data-i18n="registeredListTitle">登録済み一覧</h2>
+          <button id="lockBtn" class="danger" style="width: auto; padding: 6px 12px; margin: 0; font-size: 0.85rem;" data-i18n="lockBtn">施錠する</button>
+        </div>
+        <input type="text" id="searchInput" placeholder="サイト名・URL・IDで検索..." data-i18n-placeholder="searchInputPlaceholder" style="margin: 0;">
+      </div>
+
+      <table class="responsive-table">
+        <thead>
+          <tr>
+            <th data-i18n="thSite">サイト名</th>
+            <th data-i18n="thUrl">URL</th>
+            <th data-i18n="thUser">ID / ユーザー名</th>
+            <th data-i18n="thPass">パスワード</th>
+            <th data-i18n="thMemo">メモ</th>
+            <th data-i18n="thAction">操作</th>
+          </tr>
+        </thead>
+        <tbody id="itemTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 機能紹介モーダル画面 -->
+  <div id="infoModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 style="margin-top:0;" data-i18n="infoTitle">このアプリの特長と安全上のご注意</h3>
+      
+      <ul class="feature-list">
+        <li>
+          <strong data-i18n="info1Title">完全ローカル処理（情報漏洩リスクゼロ）</strong><br>
+          <span data-i18n="info1Desc">入力されたパスワードやデータは、高度な暗号化方式（AES-256）でお使いの端末（ブラウザ）内でのみ処理・保存されます。外部のサーバーへ送信されることは一切ありません。</span>
+        </li>
+        <li>
+          <strong data-i18n="info2Title">メモリ上のみで鍵を保持（拡張機能対策）</strong><br>
+          <span data-i18n="info2Desc">暗号化キーはブラウザのストレージには残さず、メモリ上でのみ保持します。ブラウザ拡張機能などがストレージを盗み見ても暗号文しか存在しないため安全です。</span>
+        </li>
+        <li>
+          <strong data-i18n="info3Title">オフラインで動作可能</strong><br>
+          <span data-i18n="info3Desc">このHTMLファイルをパソコンやスマホに直接ダウンロード・保存しておけば、インターネット接続が一切ない完全オフライン環境でもそのまま動作・閲覧が可能です。</span>
+        </li>
+        <li>
+          <strong data-i18n="info4Title">【重要】データの消滅に関する注意点</strong><br>
+          <span data-i18n="info4Desc">データはブラウザの内部保存領域（localStorage）に保存されます。そのため、<strong>ブラウザの閲覧履歴やキャッシュ、Cookieをクリア（削除）するとデータも消去されてしまいます</strong>。</span>
+        </li>
+        <li>
+          <strong data-i18n="info5Title">定期的なCSVバックアップを推奨</strong><br>
+          <span data-i18n="info5Desc">万が一のブラウザクリアや端末の故障に備え、定期的に「パスワードのバックアップ・インポート」メニューからデータを書き出して保管してください。</span>
+        </li>
+      </ul>
+
+      <button id="closeInfoBtn" class="secondary" style="margin-top: 12px;" data-i18n="closeBtn">閉じる</button>
+    </div>
+  </div>
+
+  <!-- 編集用モーダル画面 -->
+  <div id="editModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 data-i18n="editTitle">登録情報の編集</h3>
+      <input type="hidden" id="editIndex">
+      <label style="font-size:0.85rem; opacity:0.8;" data-i18n="thSite">サイト名</label>
+      <input type="text" id="editSiteName">
+      <label style="font-size:0.85rem; opacity:0.8;" data-i18n="thUrl">URL</label>
+      <input type="text" id="editSiteUrl">
+      <label style="font-size:0.85rem; opacity:0.8;" data-i18n="thUser">ID / ユーザー名</label>
+      <input type="text" id="editUserId">
+      <label style="font-size:0.85rem; opacity:0.8;" data-i18n="thPass">パスワード</label>
+      <input type="text" id="editSitePassword">
+      <label style="font-size:0.85rem; opacity:0.8;" data-i18n="thMemo">メモ</label>
+      <textarea id="editSiteMemo"></textarea>
+      <div class="flex" style="margin-top: 12px;">
+        <button id="updateBtn" data-i18n="updateBtn">更新する</button>
+        <button id="cancelEditBtn" class="secondary" data-i18n="cancelBtn">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- メモ表示用モーダル画面 -->
+  <div id="memoModal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <h3 id="memoModalTitle" style="margin-bottom: 4px;">メモの詳細</h3>
+      <div id="memoModalBody" class="memo-body"></div>
+      <button id="closeMemoBtn" class="secondary" data-i18n="closeBtn">閉じる</button>
+    </div>
+  </div>
+
+  <!-- トースト通知用 -->
+  <div id="toast">コピーしました</div>
+
+  <script>
+    const i18n = {
+      ja: {
+        appTitle: "ローカルストレージ・パスワードマネージャー",
+        authTitle: "パスワード管理",
+        authDesc: "マスターパスワードを入力してください。",
+        masterPasswordPlaceholder: "マスターパスワード",
+        unlockBtn: "解除",
+        openInfoModalBtn: "このアプリの特長と安全上の注意",
+        resetBtn: "初期化",
+        backupAlertTitle: "バックアップのお願い",
+        backupAlertMsg: "前回のバックアップから1ヶ月以上経過しています。データ保護のためCSV書き出しを行ってください。",
+        addAccordionTitle: "新規パスワードの追加",
+        siteNamePlaceholder: "サイト名 / サービス名",
+        siteUrlPlaceholder: "URL (例: https://example.com)",
+        userIdPlaceholder: "ユーザー名 / ID / メール",
+        sitePasswordPlaceholder: "パスワード",
+        siteMemoPlaceholder: "メモ（任意：セキュリティ質問など）",
+        addBtn: "保存する",
+        csvAccordionTitle: "パスワードのバックアップ・インポート",
+        lastBackupNotYet: "前回のバックアップ: 未実施",
+        lastBackupPrefix: "前回のバックアップ: ",
+        exportBtn: "バックアップ",
+        importBtn: "インポート",
+        registeredListTitle: "登録済み一覧",
+        lockBtn: "施錠する",
+        searchInputPlaceholder: "サイト名・URL・IDで検索...",
+        thSite: "サイト名",
+        thUrl: "URL",
+        thUser: "ID / ユーザー名",
+        thPass: "パスワード",
+        thMemo: "メモ",
+        thAction: "操作",
+        infoTitle: "このアプリの特長と安全上のご注意",
+        info1Title: "完全ローカル処理（情報漏洩リスクゼロ）",
+        info1Desc: "入力されたパスワードやデータは、高度な暗号化方式（AES-256）でお使いの端末（ブラウザ）内でのみ処理・保存されます。外部のサーバーへ送信されることは一切ありません。",
+        info2Title: "メモリ上のみで鍵を保持（拡張機能対策）",
+        info2Desc: "暗号化キーはブラウザのストレージには残さず、メモリ上でのみ保持します。ブラウザ拡張機能などがストレージを盗み見ても暗号文しか存在しないため安全です。",
+        info3Title: "オフラインで動作可能",
+        info3Desc: "このHTMLファイルをパソコンやスマホに直接ダウンロード・保存しておけば、インターネット接続が一切ない完全オフライン環境でもそのまま動作・閲覧が可能です。",
+        info4Title: "【重要】データの消滅に関する注意点",
+        info4Desc: "データはブラウザの内部保存領域（localStorage）に保存されます。そのため、ブラウザの閲覧履歴やキャッシュ、Cookieをクリア（削除）するとデータも消去されてしまいます。",
+        info5Title: "定期的なCSVバックアップを推奨",
+        info5Desc: "万が一のブラウザクリアや端末の故障に備え、定期的に「パスワードのバックアップ・インポート」メニューからデータを書き出して保管してください。",
+        closeBtn: "閉じる",
+        editTitle: "登録情報の編集",
+        updateBtn: "更新する",
+        cancelBtn: "キャンセル",
+        memoModalTitleSuffix: " のメモ",
+        noData: "データはありません",
+        noMatchingData: "該当するデータが見つかりません",
+        hasMemo: "メモあり",
+        edit: "編集",
+        delete: "削除",
+        copy: "コピー",
+        toggleShowHide: "表示/隠す",
+        link: "LINK",
+        msgEnterPass: "パスワードを入力してください",
+        msgWrongPass: "マスターパスワードが正しくありません",
+        msgResetConfirm: "登録されているすべてのデータが消去されます。本当によろしいですか？",
+        msgResetDone: "データを初期化しました。",
+        msgReqFields: "サイト名とパスワードは必須です",
+        msgUpdated: "更新しました",
+        msgCopied: "をコピーしました",
+        msgCopyFailed: "コピーに失敗しました",
+        msgAdded: "追加しました",
+        msgDeleteConfirm: "削除しますか？",
+        msgExported: "CSVを書き出しました",
+        msgImported: "CSVを読み込みました",
+        msgAutoLocked: "一定時間操作がなかったため自動施錠しました"
+      },
+      en: {
+        appTitle: "Local Storage Password Manager",
+        authTitle: "Password Manager",
+        authDesc: "Please enter your master password.",
+        masterPasswordPlaceholder: "Master Password",
+        unlockBtn: "Unlock",
+        openInfoModalBtn: "Features & Security Notice",
+        resetBtn: "Reset Data",
+        backupAlertTitle: "Backup Reminder",
+        backupAlertMsg: "More than a month has passed since your last backup. Please export a CSV to protect your data.",
+        addAccordionTitle: "Add New Password",
+        siteNamePlaceholder: "Site Name / Service",
+        siteUrlPlaceholder: "URL (e.g., https://example.com)",
+        userIdPlaceholder: "Username / ID / Email",
+        sitePasswordPlaceholder: "Password",
+        siteMemoPlaceholder: "Memo (Optional: Security questions, etc.)",
+        addBtn: "Save",
+        csvAccordionTitle: "Backup & Import Passwords",
+        lastBackupNotYet: "Last backup: Never",
+        lastBackupPrefix: "Last backup: ",
+        exportBtn: "Backup (CSV)",
+        importBtn: "Import (CSV)",
+        registeredListTitle: "Saved Passwords",
+        lockBtn: "Lock",
+        searchInputPlaceholder: "Search by site, URL, ID...",
+        thSite: "Site Name",
+        thUrl: "URL",
+        thUser: "ID / Username",
+        thPass: "Password",
+        thMemo: "Memo",
+        thAction: "Actions",
+        infoTitle: "App Features & Security Notice",
+        info1Title: "100% Local Processing (Zero Leak Risk)",
+        info1Desc: "Your passwords and data are encrypted (AES-256) and stored strictly inside your browser. Nothing is ever sent to external servers.",
+        info2Title: "In-Memory Key Storage (Extension Protection)",
+        info2Desc: "Encryption keys are held in memory only and never written to storage, protecting your data against malicious browser extensions.",
+        info3Title: "Works Completely Offline",
+        info3Desc: "Save this HTML file to your device and use it without any internet connection.",
+        info4Title: "[Important] Data Loss Warning",
+        info4Desc: "Data is stored in browser local storage. Clearing your browser cache, history, or cookies will erase your saved passwords.",
+        info5Title: "Regular CSV Backups Recommended",
+        info5Desc: "To prevent accidental data loss, please regularly export backups via the 'Backup & Import' menu.",
+        closeBtn: "Close",
+        editTitle: "Edit Password Entry",
+        updateBtn: "Update",
+        cancelBtn: "Cancel",
+        memoModalTitleSuffix: "'s Memo",
+        noData: "No data available",
+        noMatchingData: "No matching entries found",
+        hasMemo: "Has Memo",
+        edit: "Edit",
+        delete: "Delete",
+        copy: "Copy",
+        toggleShowHide: "Show/Hide",
+        link: "LINK",
+        msgEnterPass: "Please enter your password",
+        msgWrongPass: "Incorrect master password",
+        msgResetConfirm: "All stored data will be erased. Are you sure?",
+        msgResetDone: "Data has been reset.",
+        msgReqFields: "Site name and password are required",
+        msgUpdated: "Updated successfully",
+        msgCopied: " copied to clipboard",
+        msgCopyFailed: "Failed to copy",
+        msgAdded: "Added successfully",
+        msgDeleteConfirm: "Are you sure you want to delete this?",
+        msgExported: "CSV exported successfully",
+        msgImported: "CSV imported successfully",
+        msgAutoLocked: "Auto-locked due to inactivity"
+      }
+    };
+
+    let currentLang = localStorage.getItem('passVault_lang') || (navigator.language.startsWith('en') ? 'en' : 'ja');
+
+    function applyLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('passVault_lang', lang);
+      document.documentElement.lang = lang;
+
+      document.querySelectorAll('.lang-selector').forEach(select => {
+        select.value = lang;
+      });
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang][key]) {
+          el.textContent = i18n[lang][key];
+        }
+      });
+
+      document.querySelectorAll('[data-i18n-html]').forEach(el => {
+        const key = el.getAttribute('data-i18n-html');
+        if (i18n[lang][key]) {
+          el.innerHTML = i18n[lang][key];
+        }
+      });
+
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (i18n[lang][key]) {
+          el.placeholder = i18n[lang][key];
+        }
+      });
+
+      checkBackupStatus();
+      if (!document.getElementById('appCard').classList.contains('hidden')) {
+        renderList();
+      }
+    }
+
+    function changeLanguage(lang) {
+      applyLanguage(lang);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      applyLanguage(currentLang);
+    });
+
+    let vaultData = [];
+    let derivedKey = null;
+    let idleTimer = null;
+    const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+
+    async function getKey(password) {
+      const enc = new TextEncoder();
+      const baseKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: enc.encode('fixed_salt_val'), iterations: 100000, hash: 'SHA-256' },
+        baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+      );
+    }
+
+    async function encryptData(data, key) {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(JSON.stringify(data));
+      const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+      return { iv: Array.from(iv), data: Array.from(new Uint8Array(ciphertext)) };
+    }
+
+    async function decryptData(encrypted, key) {
+      const iv = new Uint8Array(encrypted.iv);
+      const data = new Uint8Array(encrypted.data);
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+      return JSON.parse(new TextDecoder().decode(decrypted));
+    }
+
+    document.getElementById('openInfoModalBtn').onclick = () => {
+      document.getElementById('infoModal').classList.remove('hidden');
+    };
+    document.getElementById('closeInfoBtn').onclick = () => {
+      document.getElementById('infoModal').classList.add('hidden');
+    };
+
+    function resetIdleTimer() {
+      if (idleTimer) clearTimeout(idleTimer);
+      if (derivedKey) {
+        idleTimer = setTimeout(() => {
+          showToast(i18n[currentLang].msgAutoLocked);
+          setTimeout(() => lockApp(), 1000);
+        }, IDLE_TIMEOUT_MS);
+      }
+    }
+
+    ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(evt => {
+      window.addEventListener(evt, resetIdleTimer, true);
+    });
+
+    function lockApp() {
+      derivedKey = null;
+      vaultData = [];
+      if (idleTimer) clearTimeout(idleTimer);
+      location.reload();
+    }
+
+    document.getElementById('unlockBtn').onclick = async () => {
+      const passInput = document.getElementById('masterPassword');
+      const pass = passInput.value;
+      if (!pass) return alert(i18n[currentLang].msgEnterPass);
+
+      try {
+        derivedKey = await getKey(pass);
+        const saved = localStorage.getItem('passVault');
+
+        if (!saved) {
+          vaultData = [];
+          showApp();
+        } else {
+          vaultData = await decryptData(JSON.parse(saved), derivedKey);
+          showApp();
+        }
+
+        passInput.value = '';
+      } catch (e) {
+        derivedKey = null;
+        alert(i18n[currentLang].msgWrongPass);
+      }
+    };
+
+    document.getElementById('resetBtn').onclick = () => {
+      if (confirm(i18n[currentLang].msgResetConfirm)) {
+        localStorage.removeItem('passVault');
+        localStorage.removeItem('passVault_lastBackup');
+        alert(i18n[currentLang].msgResetDone);
+        location.reload();
+      }
+    };
+
+    function showApp() {
+      document.getElementById('authCard').classList.add('hidden');
+      document.getElementById('appCard').classList.remove('hidden');
+      checkBackupStatus();
+      renderList();
+      resetIdleTimer();
+    }
+
+    function checkBackupStatus() {
+      const lastBackupStr = localStorage.getItem('passVault_lastBackup');
+      const alertEl = document.getElementById('backupAlert');
+      const textEl = document.getElementById('lastBackupText');
+
+      if (!lastBackupStr) {
+        textEl.textContent = i18n[currentLang].lastBackupNotYet;
+        if (vaultData.length > 0) {
+          alertEl.classList.remove('hidden');
+        }
+        return;
+      }
+
+      const lastDate = new Date(lastBackupStr);
+      const dateLocale = currentLang === 'ja' ? 'ja-JP' : 'en-US';
+      textEl.textContent = `${i18n[currentLang].lastBackupPrefix}${lastDate.toLocaleDateString(dateLocale)} ${lastDate.toLocaleTimeString(dateLocale, {hour:'2-digit', minute:'2-digit'})}`;
+
+      const now = new Date();
+      const diffDays = (now - lastDate) / (1000 * 60 * 60 * 24);
+
+      if (diffDays >= 30) {
+        alertEl.classList.remove('hidden');
+      } else {
+        alertEl.classList.add('hidden');
+      }
+    }
+
+    function formatUrl(url) {
+      if (!url) return '';
+      if (!/^https?:\/\//i.test(url)) {
+        return 'https://' + url;
+      }
+      return url;
+    }
+
+    document.getElementById('searchInput').addEventListener('input', () => {
+      renderList();
+    });
+
+    function renderList() {
+      const tbody = document.getElementById('itemTableBody');
+      tbody.innerHTML = '';
+
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const t = i18n[currentLang];
+
+      const filteredData = vaultData.filter(item => {
+        if (!query) return true;
+        const site = (item.site || '').toLowerCase();
+        const url = (item.url || '').toLowerCase();
+        const id = (item.id || '').toLowerCase();
+        const memo = (item.memo || '').toLowerCase();
+        return site.includes(query) || url.includes(query) || id.includes(query) || memo.includes(query);
+      });
+
+      if (filteredData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; opacity: 0.6; padding: 20px;">${vaultData.length === 0 ? t.noData : t.noMatchingData}</td></tr>`;
+        return;
+      }
+
+      filteredData.forEach((item) => {
+        const index = vaultData.indexOf(item);
+        const tr = document.createElement('tr');
+        const formattedUrl = formatUrl(item.url);
+        
+        tr.innerHTML = `
+          <td data-label="${t.thSite}" style="font-weight:bold;">${escapeHtml(item.site)}</td>
+          <td data-label="${t.thUrl}">
+            ${formattedUrl ? `<a href="${escapeHtml(formattedUrl)}" target="_blank" rel="noopener noreferrer" class="link-badge">${t.link} 🔗</a>` : '-'}
+          </td>
+          <td data-label="${t.thUser}">
+            ${item.id ? `<span class="copyable" onclick="copyToClipboard('${escapeJs(item.id)}', 'ID')">${escapeHtml(item.id)}</span>` : '-'}
+          </td>
+          <td data-label="${t.thPass}">
+            <div>
+              <div class="pass-val-box">
+                <span id="p-${index}" class="hidden">${escapeHtml(item.pass)}</span>
+                <span id="p-mask-${index}">••••••••</span>
+              </div>
+              <div class="pass-btn-group">
+                <span class="copyable" onclick="copyToClipboard('${escapeJs(item.pass)}', '${t.thPass}')" style="font-size:0.8rem;">${t.copy}</span>
+                <span class="copyable" onclick="togglePass(${index})" style="font-size:0.8rem;">${t.toggleShowHide}</span>
+              </div>
+            </div>
+          </td>
+          <td data-label="${t.thMemo}">
+            ${item.memo && item.memo.trim() !== '' ? `<span class="memo-btn" onclick="openMemoModal(${index})">📝 ${t.hasMemo}</span>` : '-'}
+          </td>
+          <td data-label="${t.thAction}">
+            <div class="flex" style="justify-content: flex-end;">
+              <button onclick="openEditModal(${index})" class="secondary" style="padding:4px 8px; font-size:0.8rem; width:auto; margin:0;">${t.edit}</button>
+              <button onclick="deleteItem(${index})" class="danger" style="padding:4px 8px; font-size:0.8rem; width:auto; margin:0;">${t.delete}</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function openMemoModal(i) {
+      const item = vaultData[i];
+      const t = i18n[currentLang];
+      document.getElementById('memoModalTitle').textContent = `📝 ${item.site || ''}${t.memoModalTitleSuffix}`;
+      document.getElementById('memoModalBody').textContent = item.memo || '';
+      document.getElementById('memoModal').classList.remove('hidden');
+    }
+
+    document.getElementById('closeMemoBtn').onclick = () => {
+      document.getElementById('memoModal').classList.add('hidden');
+    };
+
+    function openEditModal(i) {
+      const item = vaultData[i];
+      document.getElementById('editIndex').value = i;
+      document.getElementById('editSiteName').value = item.site || '';
+      document.getElementById('editSiteUrl').value = item.url || '';
+      document.getElementById('editUserId').value = item.id || '';
+      document.getElementById('editSitePassword').value = item.pass || '';
+      document.getElementById('editSiteMemo').value = item.memo || '';
+      document.getElementById('editModal').classList.remove('hidden');
+    }
+
+    document.getElementById('cancelEditBtn').onclick = () => {
+      document.getElementById('editModal').classList.add('hidden');
+    };
+
+    document.getElementById('updateBtn').onclick = async () => {
+      const i = parseInt(document.getElementById('editIndex').value, 10);
+      const site = document.getElementById('editSiteName').value;
+      const url = document.getElementById('editSiteUrl').value;
+      const id = document.getElementById('editUserId').value;
+      const pass = document.getElementById('editSitePassword').value;
+      const memo = document.getElementById('editSiteMemo').value;
+
+      if (!site || !pass) return alert(i18n[currentLang].msgReqFields);
+
+      vaultData[i] = { site, url, id, pass, memo };
+      await saveData();
+      document.getElementById('editModal').classList.add('hidden');
+      showToast(i18n[currentLang].msgUpdated);
+    };
+
+    function copyToClipboard(text, label) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${label}${i18n[currentLang].msgCopied}`);
+      }).catch(() => {
+        alert(i18n[currentLang].msgCopyFailed);
+      });
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'show';
+      setTimeout(() => { toast.className = toast.className.replace('show', ''); }, 2000);
+    }
+
+    function togglePass(i) {
+      const mask = document.getElementById(`p-mask-${i}`);
+      const raw = document.getElementById(`p-${i}`);
+      if (mask.style.display === 'none') {
+        mask.style.display = 'inline';
+        raw.classList.add('hidden');
+      } else {
+        mask.style.display = 'none';
+        raw.classList.remove('hidden');
+      }
+    }
+
+    async function saveData() {
+      if (!derivedKey) return;
+      const encrypted = await encryptData(vaultData, derivedKey);
+      localStorage.setItem('passVault', JSON.stringify(encrypted));
+      renderList();
+    }
+
+    document.getElementById('addBtn').onclick = async () => {
+      const site = document.getElementById('siteName').value;
+      const url = document.getElementById('siteUrl').value;
+      const id = document.getElementById('userId').value;
+      const pass = document.getElementById('sitePassword').value;
+      const memo = document.getElementById('siteMemo').value;
+      if (!site || !pass) return alert(i18n[currentLang].msgReqFields);
+
+      vaultData.push({ site, url, id, pass, memo });
+      await saveData();
+
+      document.getElementById('siteName').value = '';
+      document.getElementById('siteUrl').value = '';
+      document.getElementById('userId').value = '';
+      document.getElementById('sitePassword').value = '';
+      document.getElementById('siteMemo').value = '';
+
+      document.getElementById('addAccordion').removeAttribute('open');
+      showToast(i18n[currentLang].msgAdded);
+    };
+
+    async function deleteItem(i) {
+      if (confirm(i18n[currentLang].msgDeleteConfirm)) {
+        vaultData.splice(i, 1);
+        await saveData();
+      }
+    }
+
+    document.getElementById('exportBtn').onclick = () => {
+      let csv = 'Site,URL,ID,Password,Memo\n';
+      vaultData.forEach(row => {
+        const site = (row.site || '').replace(/"/g, '""');
+        const url = (row.url || '').replace(/"/g, '""');
+        const id = (row.id || '').replace(/"/g, '""');
+        const pass = (row.pass || '').replace(/"/g, '""');
+        const memo = (row.memo || '').replace(/"/g, '""');
+        csv += `"${site}","${url}","${id}","${pass}","${memo}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `passwords_export_${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+
+      localStorage.setItem('passVault_lastBackup', new Date().toISOString());
+      checkBackupStatus();
+      showToast(i18n[currentLang].msgExported);
+    };
+
+    document.getElementById('fileInput').onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const lines = evt.target.result.split('\n');
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+          if (cols.length >= 4 && cols[0]) {
+            vaultData.push({ 
+              site: cols[0], 
+              url: cols[1] || '',
+              id: cols[2] || '', 
+              pass: cols[3] || '',
+              memo: cols[4] || '' 
+            });
+          }
+        }
+        await saveData();
+        showToast(i18n[currentLang].msgImported);
+      };
+      reader.readAsText(file);
+    };
+
+    document.getElementById('lockBtn').onclick = () => lockApp();
+    function escapeHtml(str) { return str ? str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : ''; }
+    function escapeJs(str) { return str ? str.replace(/\\/g, '\\\\').replace(/'/g, "\\'") : ''; }
+  </script>
+</body>
+</html>
