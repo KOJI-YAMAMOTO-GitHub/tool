@@ -587,7 +587,7 @@
         tr.innerHTML = `
           <td data-label="${t.thSite}" style="font-weight:bold;">${escapeHtml(item.site)}</td>
           <td data-label="${t.thUrl}">
-            ${formattedUrl ? `<a href="${escapeHtml(formattedUrl)}" target="_blank" rel="noopener noreferrer" class="link-badge">${t.link} 🔗</a>` : '-'}
+            ${formattedUrl ? `<a href="${escapeHtml(formattedUrl)}" target="_blank" rel="noopener noreferrer" class="link-badge">${t.link}</a>` : '-'}
           </td>
           <td data-label="${t.thUser}">
             ${item.id ? `<span class="copyable" onclick="copyToClipboard('${escapeJs(item.id)}', 'ID')">${escapeHtml(item.id)}</span>` : '-'}
@@ -605,7 +605,7 @@
             </div>
           </td>
           <td data-label="${t.thMemo}">
-            ${item.memo && item.memo.trim() !== '' ? `<span class="memo-btn" onclick="openMemoModal(${index})">📝 ${t.hasMemo}</span>` : '-'}
+            ${item.memo && item.memo.trim() !== '' ? `<span class="memo-btn" onclick="openMemoModal(${index})">${t.hasMemo}</span>` : '-'}
           </td>
           <td data-label="${t.thAction}">
             <div class="flex" style="justify-content: flex-end;">
@@ -621,7 +621,7 @@
     function openMemoModal(i) {
       const item = vaultData[i];
       const t = i18n[currentLang];
-      document.getElementById('memoModalTitle').textContent = `📝 ${item.site || ''}${t.memoModalTitleSuffix}`;
+      document.getElementById('memoModalTitle').textContent = `${item.site || ''}${t.memoModalTitleSuffix}`;
       document.getElementById('memoModalBody').textContent = item.memo || '';
       document.getElementById('memoModal').classList.remove('hidden');
     }
