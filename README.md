@@ -1,4 +1,7 @@
 # tool
+## パスワード管理
+[https://koji-yamamoto-github.github.io/tool/localstrage-pw-manager](https://koji-yamamoto-github.github.io/tool/localstrage-pw-manager)
+
 ## ブラウザメモ
 [https://koji-yamamoto-github.github.io/tool/BrowserNotes](https://koji-yamamoto-github.github.io/tool/BrowserNotes)
 
