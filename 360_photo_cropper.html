@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>titleA</title>
+<style>
+:root{color-scheme:dark;--bg:#111827;--panel:#1f2937;--line:#374151;--accent:#60a5fa;--text:#f3f4f6;--muted:#9ca3af}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}main{max-width:1100px;margin:auto;padding:20px}h1{font-size:1.45rem;margin:0 0 6px}p{margin:5px 0 14px;color:var(--muted)}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}.toolbar,.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.filelabel,button{border:0;border-radius:9px;padding:10px 14px;background:#2563eb;color:white;font-weight:650;cursor:pointer}.secondary{background:#374151}button:disabled{opacity:.45;cursor:not-allowed}input[type=file]{display:none}.stagewrap{width:100%;display:flex;justify-content:center}.stage{width:min(100%,900px);aspect-ratio:4/3;background:#080b11;touch-action:none;display:block;border-radius:8px;cursor:grab;image-rendering:auto}.stage:active{cursor:grabbing}.stagewrap{position:relative}.grid{position:absolute;width:min(100%,900px);aspect-ratio:4/3;pointer-events:none;border-radius:8px;inset:0;margin:auto}.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}.control label{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px;font-weight:600}.control input[type=range]{width:100%;accent-color:var(--accent)}.numberline{display:flex;align-items:center;gap:6px;margin-top:7px}.numberline input{width:100%;min-width:0;background:#111827;color:var(--text);border:1px solid #4b5563;border-radius:7px;padding:7px}.numberline span{color:var(--muted);font-size:.9rem}.selectline{display:flex;align-items:center;gap:10px}.selectline select{background:#111827;color:var(--text);border:1px solid #4b5563;border-radius:7px;padding:8px}.hint,.foot{font-size:.9rem;color:var(--muted)}.status{min-height:1.5em;color:#bfdbfe}.actions{margin-top:14px}.foot{font-size:.85rem}@media(max-width:600px){main{padding:12px}.panel{padding:12px}h1{font-size:1.2rem}}
+</style></head><body><main>
+<h1>titleA</h1><p>explanationA</p>
+<section class="panel"><div class="toolbar"><label for="language" style="font-weight:600">言語 / Language</label><select id="language" aria-label="言語 / Language" style="background:#111827;color:var(--text);border:1px solid #4b5563;border-radius:7px;padding:8px"><option value="ja">日本語</option><option value="en">English</option></select><label class="filelabel" for="file">360°写真を読み込む</label><input id="file" type="file" accept="image/*"><button id="reset" class="secondary" disabled>表示方向をリセット</button><span id="filename" class="hint">画像未選択</span></div><div class="hint" style="margin-top:10px">※ 360°写真（通常は横長の2:1画像）を選んでください。</div></section>
+<section class="panel"><div class="control" style="margin-bottom:12px"><label for="projection">画像の作成方法</label><div class="selectline"><select id="projection"><option value="perspective" selected>通常クロップ（透視投影）</option><option value="planet">リトルプラネット（通常）</option><option value="inverse">逆向きプラネット</option></select><span class="hint">プラネットは正方形画像で保存します</span></div></div><div class="stagewrap"><canvas id="stage" class="stage" width="720" height="540" aria-label="360度写真のクロッププレビュー"></canvas><svg id="grid" class="grid" viewBox="0 0 720 540" preserveAspectRatio="none" aria-label="三分割法グリッド"><path d="M240 0V540 M480 0V540 M0 180H720 M0 360H720" fill="none" stroke="white" stroke-opacity=".8" stroke-width="1.5" stroke-dasharray="7 5"/></svg></div><div class="hint" style="margin-top:10px">画像をドラッグ：左右に360°回転・上下に視点移動。画角120°を超えると、端の引き伸ばしを抑える広角投影に自動切替します。画角は最大210°まで設定できます。</div></section>
+<section class="panel"><div class="control" style="margin-bottom:16px"><label for="ratio">出力画像の縦横比</label><div class="selectline"><select id="ratio"><option value="4:3" selected>4:3（横）</option><option value="3:4">3:4（縦）</option><option value="16:9">16:9（横）</option><option value="9:16">9:16（縦）</option><option value="1:1">1:1（正方形）</option></select><label style="justify-content:flex-start;align-items:center;font-weight:400;margin:0"><input id="showgrid" type="checkbox" checked> 三分割法グリッドを表示</label></div></div><div class="controls">
+<div class="control"><label for="yaw">左右の向き <span id="yawval">0°</span></label><input id="yaw" type="range" min="-180" max="180" value="0" step="1" disabled><div class="numberline"><input id="yawnum" type="number" min="-180" max="180" step="1" value="0" disabled aria-label="左右の向きの数値入力"><span>°</span></div></div>
+<div class="control"><label for="pitch">上下の向き <span id="pitchval">0°</span></label><input id="pitch" type="range" min="-85" max="85" value="0" step="1" disabled><div class="numberline"><input id="pitchnum" type="number" min="-85" max="85" step="1" value="0" disabled aria-label="上下の向きの数値入力"><span>°</span></div></div>
+<div class="control"><label for="fov">画角（広さ） <span id="fovval">0°</span></label><input id="fov" type="range" min="30" max="210" value="90" step="1" disabled><div class="numberline"><input id="fovnum" type="number" min="30" max="210" step="1" value="90" disabled aria-label="画角（広さ）の数値入力"><span>°</span></div></div>
+<div class="control"><label for="roll">画像の傾き <span id="rollval">0°</span></label><input id="roll" type="range" min="-45" max="45" value="0" step="0.5" disabled><div class="numberline"><input id="rollnum" type="number" min="-45" max="45" step="0.5" value="0" disabled aria-label="画像の傾きの数値入力"><span>°</span></div></div>
+</div><div class="actions"><button id="save" disabled>画像をダウンロード</button><button id="resetall" class="secondary" disabled>すべてリセット</button></div><div id="status" class="status" role="status"></div></section>
+<p class="foot"></p>
+</main><script>
+(()=>{
+let language='ja';
+const translations={
+'titleA':['360°写真クロップ','360° Photo Cropper'],
+'explanationA':['360°写真を球面として表示し、見たい方向を向いてから好きな縦横比で切り出します。プレビューをドラッグして上下左右を見回せます。処理はブラウザー内で行われ、写真は送信されません。','View your 360° photo as a sphere, aim in the direction you want, and crop it to your preferred aspect ratio. Drag the preview to look around. All processing happens in your browser; your photos are never uploaded.'],
+'360°写真を読み込む':['360°写真を読み込む','Load 360° Photo'],
+ '表示方向をリセット':['表示方向をリセット','Reset View'],
+ '画像未選択':['画像未選択','No image selected'],
+'※ 360°写真（通常は横長の2:1画像）を選んでください。':['※ 360°写真（通常は横長の2:1画像）を選んでください。','Select a 360° photo (usually a 2:1 landscape image).'],
+'画像の作成方法':['画像の作成方法','Output Mode'],
+ '通常クロップ（透視投影）':['通常クロップ（透視投影）','Standard Crop (Perspective)'],
+ 'リトルプラネット（通常）':['リトルプラネット（通常）','Little Planet'],
+ '逆向きプラネット':['逆向きプラネット','Inverted Planet'],
+ 'プラネットは正方形画像で保存します':['プラネットは正方形画像で保存します','Planet images are saved as squares'],
+'360度写真のクロッププレビュー':['360° photo crop preview','360° photo crop preview'],
+ '三分割法グリッド':['三分割法グリッド','Rule-of-thirds grid'],
+'画像をドラッグ：左右に360°回転・上下に視点移動。画角120°を超えると、端の引き伸ばしを抑える広角投影に自動切替します。画角は最大210°まで設定できます。':['画像をドラッグ：左右に360°回転・上下に視点移動。画角120°を超えると、端の引き伸ばしを抑える広角投影に自動切替します。画角は最大210°まで設定できます。','Drag the image to rotate horizontally through 360° and change the vertical view. Above 120°, a wide-angle projection is used automatically to reduce stretching at the edges. Field of view can be set up to 210°.'],
+'出力画像の縦横比':['出力画像の縦横比','Output Aspect Ratio'],
+ '4:3（横）':['4:3（横）','4:3 (Landscape)'],
+ '3:4（縦）':['3:4（縦）','3:4 (Portrait)'],
+ '16:9（横）':['16:9（横）','16:9 (Landscape)'],
+ '9:16（縦）':['9:16（縦）','9:16 (Portrait)'],
+ '1:1（正方形）':['1:1（正方形）','1:1 (Square)'],
+ '三分割法グリッドを表示':['三分割法グリッドを表示','Show rule-of-thirds grid'],
+'左右の向き':['左右の向き','Horizontal Direction'],
+ '上下の向き':['上下の向き','Vertical Direction'],
+ '画角（広さ）':['画角（広さ）','Field of View'],
+ '画像の傾き':['画像の傾き','Roll'],
+ '左右の向きの数値入力':['左右の向きの数値入力','Horizontal direction value'],
+ '上下の向きの数値入力':['上下の向きの数値入力','Vertical direction value'],
+ '画角（広さ）の数値入力':['画角（広さ）の数値入力','Field of view value'],
+ '画像の傾きの数値入力':['画像の傾きの数値入力','Roll value'],
+'画像をダウンロード':['画像をダウンロード','Download Image'],
+ 'すべてリセット':['すべてリセット','Reset All'],
+'「360°写真を読み込む」から画像を選択':['「360°写真を読み込む」から画像を選択','Choose an image using “Load 360° Photo”'],
+'画像を処理できませんでした。別の画像をお試しください。':['画像を処理できませんでした。別の画像をお試しください。','Could not process this image. Please try another image.'],
+'画像ファイルを選択してください。':['画像ファイルを選択してください。','Please select an image file.'],
+'画像を読み込めませんでした。別の画像をお試しください。':['画像を読み込めませんでした。別の画像をお試しください。','Could not load the image. Please try another image.'],
+'読み込みました。ドラッグして360°見回し、切り出す方向を選んでください。':['読み込みました。ドラッグして360°見回し、切り出す方向を選んでください。','Image loaded. Drag to look around the 360° photo and choose the crop direction.'],
+'通常クロップモードです。':['通常クロップモードです。','Standard crop mode.'],
+ 'リトルプラネットモードです。':['リトルプラネットモードです。','Little Planet mode.'],
+ '逆向きプラネットモードです。':['逆向きプラネットモードです。','Inverted Planet mode.'],
+'高解像度画像を作成しています…':['高解像度画像を作成しています…','Rendering high-resolution image…'],
+ '画像の書き出しに失敗しました。':['画像の書き出しに失敗しました。','Failed to export image.'],
+ '書き出しに失敗しました: ':['書き出しに失敗しました: ','Export failed: '],
+'クロップ':['クロップ','crop'],
+ 'リトルプラネット':['リトルプラネット','Little Planet'],
+ '逆向きプラネット':['逆向きプラネット','Inverted Planet'],
+ '画像を保存しました。':['画像を保存しました。','image saved.']
+};
+function tr(ja,en){return language==='ja'?ja:en;}
+function applyLanguage(){
+ document.documentElement.lang=language;document.title=tr('360°写真クロップ','360° Photo Cropper');
+ const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let node;
+ while(node=walker.nextNode()){const raw=node.nodeValue,trim=raw.trim();const entry=translations[trim]||Object.values(translations).find(pair=>pair[0]===trim||pair[1]===trim);if(entry)node.nodeValue=raw.replace(trim,entry[language==='ja'?0:1]);}
+ const attrMap={'aria-label':{'360度写真のクロッププレビュー':'360° photo crop preview','三分割法グリッド':'Rule-of-thirds grid','左右の向きの数値入力':'Horizontal direction value','上下の向きの数値入力':'Vertical direction value','画角（広さ）の数値入力':'Field of view value','画像の傾きの数値入力':'Roll value','言語 / Language':'Language'}};
+ document.querySelectorAll('[aria-label]').forEach(el=>{const current=el.getAttribute('aria-label');const ja=Object.keys(attrMap['aria-label']).find(k=>k===current||attrMap['aria-label'][k]===current);if(ja)el.setAttribute('aria-label',language==='ja'?ja:attrMap['aria-label'][ja]);});
+ labels();if(!sourceData)drawPlaceholder();
+}
+const languageSelect=document.querySelector('#language');languageSelect.addEventListener('change',()=>{language=languageSelect.value;applyLanguage();});
+const $=s=>document.querySelector(s),file=$('#file'),stage=$('#stage'),ctx=stage.getContext('2d',{willReadFrequently:true}),status=$('#status'),filename=$('#filename');
+const controls={yaw:$('#yaw'),pitch:$('#pitch'),fov:$('#fov'),roll:$('#roll')};const nums={yaw:$('#yawnum'),pitch:$('#pitchnum'),fov:$('#fovnum'),roll:$('#rollnum')};const ratioSelect=$('#ratio'),projection=$('#projection'),grid=$('#grid'),showgrid=$('#showgrid');const vals={yaw:$('#yawval'),pitch:$('#pitchval'),fov:$('#fovval'),roll:$('#rollval')};const reset=$('#reset'),resetall=$('#resetall'),save=$('#save');let img=null,sourceCanvas=null,sourceData=null,drag=null,renderQueued=false,originalBaseName='photo';
+function labels(){for(const k in controls){vals[k].textContent=(Number(controls[k].value).toLocaleString('ja-JP'))+'°';nums[k].value=controls[k].value;}}
+function ratio(){return ratioSelect.value.split(':').map(Number)}
+function setStageRatio(){const [rw0,rh0]=ratio();const [rw,rh]=(projection.value==='perspective'?[rw0,rh0]:[1,1]);stage.width=720;stage.height=Math.round(720*rh/rw);stage.style.aspectRatio=`${rw}/${rh}`;grid.style.aspectRatio=`${rw}/${rh}`;grid.setAttribute('viewBox',`0 0 720 ${stage.height}`);grid.innerHTML=`<path d="M240 0V${stage.height} M480 0V${stage.height} M0 ${stage.height/3}H720 M0 ${stage.height*2/3}H720" fill="none" stroke="white" stroke-opacity=".8" stroke-width="1.5" stroke-dasharray="7 5"/>`;grid.style.display=showgrid.checked?'block':'none';}
+function setEnabled(on){Object.values(controls).forEach(e=>e.disabled=!on);Object.values(nums).forEach(e=>e.disabled=!on);ratioSelect.disabled=!on;showgrid.disabled=!on;[reset,resetall,save].forEach(e=>e.disabled=!on)}
+function drawPlaceholder(){ctx.fillStyle='#080b11';ctx.fillRect(0,0,stage.width,stage.height);ctx.fillStyle='#9ca3af';ctx.textAlign='center';ctx.font='20px system-ui';ctx.fillText(tr('「360°写真を読み込む」から画像を選択','Choose an image using “Load 360° Photo”'),stage.width/2,stage.height/2);}
+function queueDraw(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;render();});}
+function render(outW=stage.width,outH=stage.height,putPreview=true){if(!sourceData)return;const W=outW,H=outH,src=sourceData.data,sw=sourceData.width,sh=sourceData.height;const result=new ImageData(W,H),dst=result.data;
+const yaw=Number(controls.yaw.value)*Math.PI/180,pitch=Number(controls.pitch.value)*Math.PI/180,roll=Number(controls.roll.value)*Math.PI/180,fov=Number(controls.fov.value)*Math.PI/180;
+const focal=W/(2*Math.tan(fov/2)),cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),cr=Math.cos(roll),sr=Math.sin(roll);
+if(projection.value!=='perspective'){
+ const radius=Math.min(W,H)/2,scale=90/Math.max(30,Number(controls.fov.value)),yawOffset=yaw,rollAngle=roll;
+ for(let y=0;y<H;y++){const ny=(y-H/2)/radius;for(let x=0;x<W;x++){const nx=(x-W/2)/radius;const rr=Math.hypot(nx,ny)*scale;const a=Math.atan2(nx,-ny)+yawOffset+rollAngle;let v=projection.value==='planet'?1-rr:rr;v=Math.max(0,Math.min(1,v));v-=Number(controls.pitch.value)/180;v=Math.max(0,Math.min(1,v));let u=(a/(2*Math.PI)+0.5)*sw;u=((u%sw)+sw)%sw;const vv=v*(sh-1);const x0=Math.floor(u),x1=(x0+1)%sw,fx=u-x0,y0=Math.floor(vv),y1=Math.min(sh-1,y0+1),fy=vv-y0;const i00=(y0*sw+x0)*4,i10=(y0*sw+x1)*4,i01=(y1*sw+x0)*4,i11=(y1*sw+x1)*4,di=(y*W+x)*4;for(let c=0;c<3;c++){const top=src[i00+c]*(1-fx)+src[i10+c]*fx,bottom=src[i01+c]*(1-fx)+src[i11+c]*fx;dst[di+c]=Math.round(top*(1-fy)+bottom*fy);}dst[di+3]=255;}}
+ if(putPreview)ctx.putImageData(result,0,0);return result;
+}
+const useCylindrical=fov>120*Math.PI/180;
+const cylindricalVerticalSpan=Math.min(fov*H/W,120*Math.PI/180);
+for(let y=0;y<H;y++){const ly=useCylindrical?(H/2-y)*cylindricalVerticalSpan/H:(H/2-y)/focal;for(let x=0;x<W;x++){const lx=useCylindrical?(x-W/2)*fov/W:(x-W/2)/focal;let rx=useCylindrical?Math.sin(lx):lx,ry=ly,rz=useCylindrical?Math.cos(lx):1;const norm=Math.hypot(rx,ry,rz);rx/=norm;ry/=norm;rz/=norm;
+// Roll camera image plane, then pitch and yaw the viewing direction.
+const rrx=rx*cr-ry*sr,rry=rx*sr+ry*cr;rx=rrx;ry=rry;
+const py=ry*cp-rz*sp,pz=ry*sp+rz*cp;ry=py;rz=pz;
+const wx=rx*cy+rz*sy,wz=-rx*sy+rz*cy,wy=ry;
+let u=(Math.atan2(wx,wz)/(2*Math.PI)+0.5)*sw;u=((u%sw)+sw)%sw;const v=Math.max(0,Math.min(sh-1,(0.5-Math.asin(Math.max(-1,Math.min(1,wy)))/Math.PI)*sh));
+// Bilinear interpolation: smoother and more detailed-looking than nearest-pixel sampling.
+const x0=Math.floor(u),x1=(x0+1)%sw,fx=u-x0,y0=Math.floor(v),y1=Math.min(sh-1,y0+1),fy=v-y0;
+const i00=(y0*sw+x0)*4,i10=(y0*sw+x1)*4,i01=(y1*sw+x0)*4,i11=(y1*sw+x1)*4,di=(y*W+x)*4;
+for(let c=0;c<3;c++){const top=src[i00+c]*(1-fx)+src[i10+c]*fx,bottom=src[i01+c]*(1-fx)+src[i11+c]*fx;dst[di+c]=Math.round(top*(1-fy)+bottom*fy);}dst[di+3]=255;}}
+if(putPreview)ctx.putImageData(result,0,0);return result;}
+function update(){labels();queueDraw();}
+for(const k in controls){controls[k].addEventListener('input',update);nums[k].addEventListener('change',()=>{let v=Number(nums[k].value);if(!Number.isFinite(v))v=Number(controls[k].value);v=Math.max(Number(controls[k].min),Math.min(Number(controls[k].max),v));controls[k].value=v;update();});}
+// On touch devices, prevent releasing a slider from leaving the paired numeric field focused and opening the soft keyboard.
+for(const k in controls){const releaseSlider=()=>{setTimeout(()=>{if(nums[k]===document.activeElement)nums[k].blur();},0);};for(const ev of ['pointerup','touchend','mouseup','change'])controls[k].addEventListener(ev,releaseSlider,{passive:true});}
+ratioSelect.addEventListener('change',()=>{setStageRatio();queueDraw();});projection.addEventListener('change',()=>{setStageRatio();queueDraw();status.textContent=projection.value==='perspective'?tr('通常クロップモードです。','Standard crop mode.'):projection.value==='planet'?tr('リトルプラネットモードです。','Little Planet mode.'):tr('逆向きプラネットモードです。','Inverted Planet mode.');});showgrid.addEventListener('change',()=>grid.style.display=showgrid.checked?'block':'none');
+file.addEventListener('change',()=>{const f=file.files&&file.files[0];if(!f)return;if(!f.type.startsWith('image/')){status.textContent=tr('画像ファイルを選択してください。','Please select an image file.');return;}originalBaseName=f.name.replace(/\.[^.]+$/, '')||'photo';const url=URL.createObjectURL(f),im=new Image();im.onload=()=>{img=im;sourceCanvas=document.createElement('canvas');sourceCanvas.width=im.naturalWidth;sourceCanvas.height=im.naturalHeight;const sctx=sourceCanvas.getContext('2d',{willReadFrequently:true});sctx.drawImage(im,0,0);try{sourceData=sctx.getImageData(0,0,sourceCanvas.width,sourceCanvas.height);}catch(e){status.textContent=tr('画像を処理できませんでした。別の画像をお試しください。','Could not process this image. Please try another image.');URL.revokeObjectURL(url);return;}filename.textContent=f.name+'（'+im.naturalWidth+' × '+im.naturalHeight+'）';setEnabled(true);resetView();status.textContent=tr('読み込みました。ドラッグして360°見回し、切り出す方向を選んでください。','Image loaded. Drag to look around the 360° photo and choose the crop direction.');URL.revokeObjectURL(url);};im.onerror=()=>{URL.revokeObjectURL(url);status.textContent=tr('画像を読み込めませんでした。別の画像をお試しください。','Could not load the image. Please try another image.');};im.src=url;});
+
+function resetView(){controls.yaw.value=0;controls.pitch.value=0;controls.fov.value=90;controls.roll.value=0;labels();queueDraw();}
+reset.addEventListener('click',resetView);resetall.addEventListener('click',resetView);
+stage.addEventListener('pointerdown',e=>{if(!sourceData)return;stage.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,yaw:Number(controls.yaw.value),pitch:Number(controls.pitch.value)};});stage.addEventListener('pointermove',e=>{if(!drag)return;const r=stage.getBoundingClientRect();controls.yaw.value=Math.max(-180,Math.min(180,drag.yaw-(e.clientX-drag.x)*180/r.width));controls.pitch.value=Math.max(-85,Math.min(85,drag.pitch+(e.clientY-drag.y)*100/r.height));update();});for(const ev of ['pointerup','pointercancel','lostpointercapture'])stage.addEventListener(ev,()=>drag=null);
+save.addEventListener('click',()=>{if(!sourceData)return;status.textContent=tr('高解像度画像を作成しています…','Rendering high-resolution image…');setTimeout(()=>{try{const r=ratio();let outW,outH;if(projection.value!=='perspective'){outW=3000;outH=3000;}else if(r[0]===4){outW=3840;outH=2880;}else if(r[0]===3&&r[1]===4){outW=2880;outH=3840;}else if(r[0]===16){outW=3840;outH=2160;}else if(r[0]===9&&r[1]===16){outW=2160;outH=3840;}else{outW=3000;outH=3000;}const result=render(outW,outH,false),out=document.createElement('canvas');out.width=outW;out.height=outH;out.getContext('2d').putImageData(result,0,0);out.toBlob(blob=>{if(!blob){status.textContent=tr('画像の書き出しに失敗しました。','Failed to export image.');return;}const a=document.createElement('a'),url=URL.createObjectURL(blob),now=new Date(),pad=n=>String(n).padStart(2,'0'),stamp=now.getFullYear()+pad(now.getMonth()+1)+pad(now.getDate())+'_'+pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds()),cropSize=outW+'x'+outH;a.href=url;const modeTag=projection.value==='perspective'?'crop_'+r.join('x'):projection.value==='planet'?'little_planet':'inverse_planet';a.download=originalBaseName+'_'+modeTag+'_'+cropSize+'_'+stamp+'.jpg';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);status.textContent=language==='ja'?`${projection.value==='perspective'?r.join(':')+'クロップ':projection.value==='planet'?'リトルプラネット':'逆向きプラネット'}画像（${outW} × ${outH}）を保存しました。`:`Saved ${projection.value==='perspective'?r.join(':')+' crop':projection.value==='planet'?'Little Planet':'Inverted Planet'} image (${outW} × ${outH}).`;},'image/jpeg',0.98);}catch(e){status.textContent=tr('書き出しに失敗しました: ','Export failed: ')+e.message;}},30);});
+setStageRatio();drawPlaceholder();labels();applyLanguage();
+})();
+</script></body></html>
