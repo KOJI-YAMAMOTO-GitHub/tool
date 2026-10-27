@@ -34,6 +34,9 @@
 ## noteのカバー画像生成
 [https://koji-yamamoto-github.github.io/tool/noteCoverImageGenerator](https://koji-yamamoto-github.github.io/tool/noteCoverImageGenerator)
 
+## 360°動画・写真Viewer
+[https://koji-yamamoto-github.github.io/tool/360_vr_viewer](https://koji-yamamoto-github.github.io/tool/360_vr_viewer)
+
 # 勉強
 ## gemma4検証
 [https://koji-yamamoto-github.github.io/tool/gemma-4-offline](https://koji-yamamoto-github.github.io/tool/gemma-4-offline)
