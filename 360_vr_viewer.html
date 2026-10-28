@@ -24,11 +24,16 @@ select{width:100%}.small{font-size:12px;color:var(--muted)}.filename{font-size:1
 .notice{font-size:12px;color:var(--muted);line-height:1.55}
 footer{max-width:1200px;margin:0 auto;padding:0 14px 18px;color:var(--muted);font-size:12px}
 body.vr main{grid-template-columns:1fr}body.vr .panel{display:none}body.vr .screen{aspect-ratio:2/1;min-height:220px}body.vr header .sub{display:none}
+header{position:sticky;top:0;z-index:20}
+#exitFullscreenFloat{display:none;position:fixed;right:12px;top:12px;z-index:10000;background:#111d;color:#fff;border:1px solid #fff8;border-radius:999px;padding:10px 13px;box-shadow:0 2px 10px #0008}
+body.fullscreen-active #exitFullscreenFloat{display:block}
+body.fullscreen-active header{padding-right:145px}
+:fullscreen{background:var(--bg)}
 @media(max-width:800px){main{grid-template-columns:1fr;padding:9px;gap:10px}.panel{padding:12px}.screen{aspect-ratio:4/3;min-height:240px}header{padding:12px}body.vr .screen{aspect-ratio:2/1;min-height:190px}}
 </style>
 </head>
 <body>
-<header><div><h1>360°写真・動画 VRビューアー</h1><div class="sub">オフライン対応・端末内で表示</div></div><div class="row"><button id="resetBtn">視点リセット</button><button id="vrBtn" class="primary">VRモード</button></div></header>
+<button id="exitFullscreenFloat" type="button">全画面を終了 ✕</button><header><div><h1>360°写真・動画 VRビューアー</h1><div class="sub">オフライン対応・端末内で表示</div></div><div class="row"><button id="resetBtn">視点リセット</button><button id="vrBtn" class="primary">VRモード</button></div></header>
 <main>
 <div class="viewer-wrap">
  <div class="screen" id="screen"><canvas id="glcanvas"></canvas><div id="status">ファイルを選択してください</div><div id="hint">ドラッグ / スワイプで見回す</div></div>
@@ -47,7 +52,7 @@ body.vr main{grid-template-columns:1fr}body.vr .panel{display:none}body.vr .scre
   <div class="row" style="margin-top:12px"><button id="gyroBtn">端末の向きで操作</button><button id="fullscreenBtn">全画面</button></div>
  </section>
  <section><h2>3. 操作方法</h2>
-  <p class="notice">・パソコン：画面をドラッグして視点を移動、ホイールで視野角を変更。<br>・スマートフォン：指でスワイプ。対応ブラウザでは「端末の向きで操作」を許可します。<br>・VR：左右分割表示に切り替えてゴーグルに装着します。</p>
+  <p class="notice">・パソコン：画面をドラッグして視点を移動、ホイールで水平画角を変更。<br>・スマートフォン：指でスワイプ。対応ブラウザでは「端末の向きで操作」を許可します。<br>・VR：左右分割表示に切り替えてゴーグルに装着します。VRモードで「端末の向きで操作」を有効にすると、対応スマートフォンでは頭の向きに追従します。</p>
  </section>
  <section><h2>対応について</h2>
   <p class="notice">このHTMLは外部通信・アップロードを行いません。VRモードは左右に同じ360°映像を表示するモノスコピック方式です。立体撮影された左右別映像の立体視には対応していません。端末の向き取得はブラウザによって許可やHTTPS等が必要で、ローカルHTMLでは利用できない場合があります。</p>
@@ -66,18 +71,13 @@ const vertex=`attribute vec2 p; varying vec2 uv; void main(){uv=(p+1.0)*0.5; gl_
 const fragment=`precision mediump float; varying vec2 uv; uniform sampler2D tex; uniform float yaw; uniform float pitch; uniform float fov; uniform float aspect; uniform float eyeShift;
 const float PI=3.141592653589793;
 void main(){
- // Wide-angle natural projection: map screen radius to viewing angle
- // instead of using a rectilinear pinhole projection that stretches edges.
- float sx=uv.x*2.0-1.0;
- float sy0=1.0-uv.y*2.0;
- float halfV=radians(fov)*0.5;
- float halfH=atan(aspect*tan(halfV));
- float ax=sx*halfH+eyeShift;
- float ay=sy0*halfV;
- float theta=length(vec2(ax,ay));
- vec3 d;
- if(theta<0.00001){d=vec3(0.0,0.0,1.0);}
- else {d=vec3(sin(theta)*ax/theta,sin(theta)*ay/theta,cos(theta));}
+ // Natural rectilinear perspective. FOV is the HORIZONTAL angle.
+ // Derive vertical scale from aspect ratio so wide PC screens do not treat 120°
+ // as a vertical field of view (which creates extreme stretching).
+ float tanHalfH=tan(radians(fov)*0.5);
+ float x=(uv.x*2.0-1.0)*tanHalfH+eyeShift;
+ float y=(1.0-uv.y*2.0)*(tanHalfH/aspect);
+ vec3 d=normalize(vec3(x,y,1.0));
  float cp=cos(pitch),sp=sin(pitch),cy=cos(yaw),sy=sin(yaw);
  d=vec3(d.x, d.y*cp-d.z*sp, d.y*sp+d.z*cp);
  d=vec3(d.x*cy+d.z*sy,d.y,-d.x*sy+d.z*cy);
@@ -111,7 +111,7 @@ function render(){
  for(let i=0;i<views;i++){
   const w=vr?Math.floor(canvas.width/2):canvas.width;gl.viewport(vr?i*w:0,0,w,canvas.height);
   gl.uniform1f(yawLoc,yaw+(gyro?gyroOffset:0)+(vr?(i===0?-.025:.025):0));gl.uniform1f(pitchLoc,pitch);
-  gl.uniform1f(fovLoc,fovDeg);gl.uniform1f(aspLoc,w/canvas.height);gl.uniform1f(eyeLoc,0);
+  gl.uniform1f(fovLoc,fovDeg);gl.uniform1f(aspLoc,w/canvas.height);gl.uniform1f(eyeLoc,0.0);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
  }
 }
@@ -142,13 +142,72 @@ canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener(
 canvas.addEventListener('wheel',e=>{e.preventDefault();fovDeg=Math.max(45,Math.min(120,fovDeg+Math.sign(e.deltaY)*3));fov.value=fovDeg;fovVal.textContent=fovDeg},{passive:false});
 document.getElementById('resetBtn').addEventListener('click',()=>{yaw=0;pitch=0;gyroOffset=0});
 document.getElementById('vrBtn').addEventListener('click',()=>{vr=!vr;document.body.classList.toggle('vr',vr);document.getElementById('vrBtn').textContent=vr?'通常表示へ':'VRモード';resize()});
-document.getElementById('fullscreenBtn').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await screen.requestFullscreen();else await document.exitFullscreen()}catch(e){setStatus('全画面表示に対応していません')}});
+const fullscreenBtn=document.getElementById('fullscreenBtn');
+const exitFullscreenFloat=document.getElementById('exitFullscreenFloat');
+async function enterFullscreen(){
+ try{
+  // Fullscreen the whole page, not just the canvas, so controls remain available.
+  if(!document.fullscreenElement){
+   const target=document.documentElement;
+   if(target.requestFullscreen) await target.requestFullscreen();
+   else {setStatus('このブラウザでは全画面APIを利用できません');return}
+  }
+ }catch(e){setStatus('全画面表示を開始できません。ブラウザの設定をご確認ください')}
+}
+async function exitFullscreen(){
+ try{if(document.fullscreenElement && document.exitFullscreen) await document.exitFullscreen();}
+ catch(e){setStatus('全画面を解除できません。Escキーもお試しください')}
+}
+fullscreenBtn.addEventListener('click',()=>document.fullscreenElement?exitFullscreen():enterFullscreen());
+exitFullscreenFloat.addEventListener('click',exitFullscreen);
+document.addEventListener('fullscreenchange',()=>{
+ const active=!!document.fullscreenElement;
+ document.body.classList.toggle('fullscreen-active',active);
+ fullscreenBtn.textContent=active?'全画面を終了':'全画面';
+});
+
+let gyroEnabled=false, gyroListener=null, gyroBaseAlpha=null, gyroBaseBeta=null, gyroBaseGamma=null;
+let yawAtGyro=0, pitchAtGyro=0;
+function angleDelta(current,base){
+ let d=current-base;
+ while(d>180)d-=360; while(d < -180)d+=360;
+ return d;
+}
 document.getElementById('gyroBtn').addEventListener('click',async()=>{
  try{
-  if(typeof DeviceOrientationEvent==='undefined'){setStatus('この端末・ブラウザは端末の向き取得に対応していません');return}
-  if(typeof DeviceOrientationEvent.requestPermission==='function'){const p=await DeviceOrientationEvent.requestPermission();if(p!=='granted'){setStatus('端末の向きの利用が許可されませんでした');return}}
-  window.addEventListener('deviceorientation',e=>{if(e.alpha==null)return;gyro=true;gyroOffset=(e.alpha/180*Math.PI);pitch=Math.max(-1.52,Math.min(1.52,(e.beta||0)/180*Math.PI))});
-  setStatus('端末の向きによる操作を有効にしました（対応環境のみ）');
+  if(gyroEnabled){
+   if(gyroListener)window.removeEventListener('deviceorientation',gyroListener);
+   gyroEnabled=false;gyroListener=null;gyroBaseAlpha=gyroBaseBeta=gyroBaseGamma=null;
+   document.getElementById('gyroBtn').textContent='端末の向きで操作';
+   setStatus('端末の向きによる操作を停止しました');return;
+  }
+  if(typeof DeviceOrientationEvent==='undefined'){
+   setStatus('この端末・ブラウザは端末の向き取得に対応していません');return;
+  }
+  if(typeof DeviceOrientationEvent.requestPermission==='function'){
+   const permission=await DeviceOrientationEvent.requestPermission();
+   if(permission!=='granted'){setStatus('端末の向きの利用が許可されませんでした');return;}
+  }
+  gyroBaseAlpha=gyroBaseBeta=gyroBaseGamma=null;
+  yawAtGyro=yaw;pitchAtGyro=pitch;
+  gyroListener=(e)=>{
+   if(e.alpha==null || e.beta==null)return;
+   if(gyroBaseAlpha===null){gyroBaseAlpha=e.alpha;gyroBaseBeta=e.beta;gyroBaseGamma=e.gamma||0;}
+   // Relative movement from the orientation at activation avoids a sudden jump.
+   const da=angleDelta(e.alpha,gyroBaseAlpha);
+   const db=angleDelta(e.beta,gyroBaseBeta);
+   const dg=angleDelta(e.gamma||0,gyroBaseGamma||0);
+   // Alpha primarily controls heading; beta controls up/down. Gamma adds a small
+   // correction for phones held in landscape orientation.
+   yaw=yawAtGyro-da*Math.PI/180;
+   pitch=Math.max(-1.48,Math.min(1.48,pitchAtGyro+db*Math.PI/180));
+   if(Math.abs(dg)>1) pitch=Math.max(-1.48,Math.min(1.48,pitchAtGyro+dg*Math.PI/180));
+   gyro=true;
+  };
+  window.addEventListener('deviceorientation',gyroListener);
+  gyroEnabled=true;
+  document.getElementById('gyroBtn').textContent='端末の向きを停止';
+  setStatus('端末の向きによる視点操作を有効にしました');
  }catch(e){setStatus('端末の向きは利用できません。ブラウザの権限やHTTPS条件をご確認ください')}
 });
 initGL();
