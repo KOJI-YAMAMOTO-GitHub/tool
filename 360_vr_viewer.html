@@ -88,7 +88,7 @@ body.fullscreen-active footer {
   <div class="row" style="margin-top:12px"><button id="gyroBtn">端末の向きで操作</button><button id="fullscreenBtn">全画面</button></div>
  </section>
  <section><h2>3. 操作方法</h2>
-  <p class="notice">・パソコン：画面をドラッグして視点を移動、ホイールで水平画角を変更。<br>・スマートフォン：指でスワイプ。対応ブラウザでは「端末の向きで操作」を許可します。<br>・VR：左右分割表示に切り替えてゴーグルに装着します。VRモードで「端末の向きで操作」を有効にすると、対応スマートフォンでは頭の向きに追従します。</p>
+  <p class="notice">・パソコン：画面をドラッグして視点を移動、ホイールで水平画角を変更。<br>・スマートフォン：指でスワイプ。対応ブラウザでは「端末の向きで操作」を許可します。<br>・VR：左右分割表示に切り替えてゴーグルに装着します。VRモードにすると自動的に全画面と頭の向きへの追従が有効になります。</p>
  </section>
  <section><h2>対応について</h2>
   <p class="notice">このHTMLは外部通信・アップロードを行いません。VRモードは左右に同じ360°映像を表示するモノスコピック方式です。立体撮影された左右別映像の立体視には対応していません。端末の向き取得はブラウザによって許可やHTTPS等が必要で、ローカルHTMLでは利用できない場合があります。</p>
@@ -102,7 +102,7 @@ const canvas=document.getElementById('glcanvas'), screen=document.getElementById
 const fileInput=document.getElementById('fileInput'), status=document.getElementById('status'), filename=document.getElementById('filename');
 const playBtn=document.getElementById('playBtn'), seek=document.getElementById('seek'), current=document.getElementById('current'), duration=document.getElementById('duration');
 const fov=document.getElementById('fov'), fovVal=document.getElementById('fovVal'), quality=document.getElementById('quality');
-let gl,program,texture,source=null,sourceType='',objectURL=null,ready=false,vr=false,dragging=false,lastX=0,lastY=0,yaw=0,pitch=0,fovDeg=90,gyro=false,gyroOffset=0;
+let gl,program,texture,source=null,sourceType='',objectURL=null,ready=false,vr=false,dragging=false,lastX=0,lastY=0,yaw=0,pitch=0,fovDeg=90,gyro=false;
 let targetYaw=0, targetPitch=0;
 
 const vertex=`attribute vec2 p; varying vec2 uv; void main(){uv=(p+1.0)*0.5; gl_Position=vec4(p,0.,1.);}`;
@@ -177,7 +177,6 @@ fileInput.addEventListener('change',()=>{
  filename.textContent=f.name+'（'+(f.size/1024/1024).toFixed(1)+' MB）';
  yaw=0;pitch=0;targetYaw=0;targetPitch=0;
 
- // MIMEタイプに加え、拡張子による判定も追加（スマホ等でのMIMEタイプ抜け対策）
  const name = f.name.toLowerCase();
  const isImage = f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/.test(name);
  const isVideo = f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|ogv)$/.test(name);
@@ -224,7 +223,6 @@ canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener(
 
 canvas.addEventListener('wheel',e=>{e.preventDefault();fovDeg=Math.max(45,Math.min(120,fovDeg+Math.sign(e.deltaY)*3));fov.value=fovDeg;fovVal.textContent=fovDeg},{passive:false});
 document.getElementById('resetBtn').addEventListener('click',()=>{yaw=0;pitch=0;targetYaw=0;targetPitch=0;gyroBaseAlpha=null});
-document.getElementById('vrBtn').addEventListener('click',()=>{vr=!vr;document.body.classList.toggle('vr',vr);document.getElementById('vrBtn').textContent=vr?'通常表示へ':'VRモード';resize()});
 
 const fullscreenBtn=document.getElementById('fullscreenBtn');
 const exitFullscreenFloat=document.getElementById('exitFullscreenFloat');
@@ -257,15 +255,10 @@ function angleDelta(current,base){
  while(d>180)d-=360; while(d < -180)d+=360;
  return d;
 }
-document.getElementById('gyroBtn').addEventListener('click',async()=>{
+
+async function enableGyro(){
+ if(gyroEnabled) return;
  try{
-  if(gyroEnabled){
-   if(gyroListener)window.removeEventListener('deviceorientation',gyroListener);
-   gyroEnabled=false;gyroListener=null;gyroBaseAlpha=gyroBaseBeta=null;
-   gyro=false;
-   document.getElementById('gyroBtn').textContent='端末の向きで操作';
-   setStatus('端末の向きによる操作を停止しました');return;
-  }
   if(typeof DeviceOrientationEvent==='undefined'){
    setStatus('この端末・ブラウザは端末の向き取得に対応していません');return;
   }
@@ -287,7 +280,8 @@ document.getElementById('gyroBtn').addEventListener('click',async()=>{
    const db=angleDelta(e.beta,gyroBaseBeta);
    
    targetYaw=yawAtGyro-da*Math.PI/180;
-   targetPitch=Math.max(-1.48,Math.min(1.48,pitchAtGyro-db*Math.PI/180));
+   // 上下逆転を修正 (+db に変更)
+   targetPitch=Math.max(-1.48,Math.min(1.48,pitchAtGyro+db*Math.PI/180));
    gyro=true;
   };
   window.addEventListener('deviceorientation',gyroListener);
@@ -295,7 +289,39 @@ document.getElementById('gyroBtn').addEventListener('click',async()=>{
   document.getElementById('gyroBtn').textContent='端末の向きを停止';
   setStatus('端末の向きによる視点操作を有効にしました');
  }catch(e){setStatus('端末の向きは利用できません。ブラウザの権限やHTTPS条件をご確認ください')}
+}
+
+function disableGyro(){
+ if(!gyroEnabled) return;
+ if(gyroListener)window.removeEventListener('deviceorientation',gyroListener);
+ gyroEnabled=false;gyroListener=null;gyroBaseAlpha=gyroBaseBeta=null;
+ gyro=false;
+ document.getElementById('gyroBtn').textContent='端末の向きで操作';
+ setStatus('端末の向きによる操作を停止しました');
+}
+
+document.getElementById('gyroBtn').addEventListener('click',async()=>{
+ if(gyroEnabled){ disableGyro(); } else { await enableGyro(); }
 });
+
+// VRモードボタンの処理（自動で全画面 ＆ ジャイロ有効化）
+document.getElementById('vrBtn').addEventListener('click',async()=>{
+ vr=!vr;
+ document.body.classList.toggle('vr',vr);
+ document.getElementById('vrBtn').textContent=vr?'通常表示へ':'VRモード';
+ resize();
+
+ if(vr){
+  // VRモード時は自動的に全画面＆ジャイロ有効化
+  await enterFullscreen();
+  await enableGyro();
+ }else{
+  // 通常表示に戻ったときは全画面解除＆ジャイロ停止
+  await exitFullscreen();
+  disableGyro();
+ }
+});
+
 initGL();
 })();
 </script>
