@@ -25,15 +25,51 @@ select{width:100%}.small{font-size:12px;color:var(--muted)}.filename{font-size:1
 footer{max-width:1200px;margin:0 auto;padding:0 14px 18px;color:var(--muted);font-size:12px}
 body.vr main{grid-template-columns:1fr}body.vr .panel{display:none}body.vr .screen{aspect-ratio:2/1;min-height:220px}body.vr header .sub{display:none}
 header{position:sticky;top:0;z-index:20}
-#exitFullscreenFloat{display:none;position:fixed;right:12px;top:12px;z-index:10000;background:#111d;color:#fff;border:1px solid #fff8;border-radius:999px;padding:10px 13px;box-shadow:0 2px 10px #0008}
+#exitFullscreenFloat{display:none;position:fixed;right:16px;top:16px;z-index:10000;background:#111d;color:#fff;border:1px solid #fff8;border-radius:999px;padding:10px 16px;box-shadow:0 2px 10px #0008;cursor:pointer}
 body.fullscreen-active #exitFullscreenFloat{display:block}
-body.fullscreen-active header{padding-right:145px}
+body.fullscreen-active header{display:none}
+
+/* 全画面時のレイアウト調整 */
+body.fullscreen-active main{
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+}
+body.fullscreen-active .viewer-wrap{
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+body.fullscreen-active .screen{
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  aspect-ratio: auto;
+  min-height: 0;
+}
+body.fullscreen-active .timeline,
+body.fullscreen-active aside.panel,
+body.fullscreen-active footer {
+  display: none !important;
+}
+
 :fullscreen{background:var(--bg)}
 @media(max-width:800px){main{grid-template-columns:1fr;padding:9px;gap:10px}.panel{padding:12px}.screen{aspect-ratio:4/3;min-height:240px}header{padding:12px}body.vr .screen{aspect-ratio:2/1;min-height:190px}}
 </style>
 </head>
 <body>
-<button id="exitFullscreenFloat" type="button">全画面を終了 ✕</button><header><div><h1>360°写真・動画 VRビューアー</h1><div class="sub">オフライン対応・端末内で表示</div></div><div class="row"><button id="resetBtn">視点リセット</button><button id="vrBtn" class="primary">VRモード</button></div></header>
+<button id="exitFullscreenFloat" type="button">全画面を終了 ✕</button>
+<header><div><h1>360°写真・動画 VRビューアー</h1><div class="sub">オフライン対応・端末内で表示</div></div><div class="row"><button id="resetBtn">視点リセット</button><button id="vrBtn" class="primary">VRモード</button></div></header>
 <main>
 <div class="viewer-wrap">
  <div class="screen" id="screen"><canvas id="glcanvas"></canvas><div id="status">ファイルを選択してください</div><div id="hint">ドラッグ / スワイプで見回す</div></div>
@@ -67,13 +103,12 @@ const fileInput=document.getElementById('fileInput'), status=document.getElement
 const playBtn=document.getElementById('playBtn'), seek=document.getElementById('seek'), current=document.getElementById('current'), duration=document.getElementById('duration');
 const fov=document.getElementById('fov'), fovVal=document.getElementById('fovVal'), quality=document.getElementById('quality');
 let gl,program,texture,source=null,sourceType='',objectURL=null,ready=false,vr=false,dragging=false,lastX=0,lastY=0,yaw=0,pitch=0,fovDeg=90,gyro=false,gyroOffset=0;
+let targetYaw=0, targetPitch=0;
+
 const vertex=`attribute vec2 p; varying vec2 uv; void main(){uv=(p+1.0)*0.5; gl_Position=vec4(p,0.,1.);}`;
 const fragment=`precision mediump float; varying vec2 uv; uniform sampler2D tex; uniform float yaw; uniform float pitch; uniform float fov; uniform float aspect; uniform float eyeShift;
 const float PI=3.141592653589793;
 void main(){
- // Natural rectilinear perspective. FOV is the HORIZONTAL angle.
- // Derive vertical scale from aspect ratio so wide PC screens do not treat 120°
- // as a vertical field of view (which creates extreme stretching).
  float tanHalfH=tan(radians(fov)*0.5);
  float x=(uv.x*2.0-1.0)*tanHalfH+eyeShift;
  float y=(1.0-uv.y*2.0)*(tanHalfH/aspect);
@@ -103,50 +138,98 @@ function resize(){
 }
 function render(){
  requestAnimationFrame(render);if(!ready||!gl)return;
- if(source && sourceType==='image' && source.complete && source.naturalWidth){try{gl.bindTexture(gl.TEXTURE_2D,texture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source);source=null}catch(e){}}
- if(sourceType==='video'&&video.readyState>=2){try{gl.bindTexture(gl.TEXTURE_2D,texture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,video)}catch(e){}}
+
+ if(gyro){
+  yaw += (targetYaw - yaw) * 0.2;
+  pitch += (targetPitch - pitch) * 0.2;
+ }
+
+ if(source && sourceType==='image' && source.complete && source.naturalWidth){
+  try{
+   gl.bindTexture(gl.TEXTURE_2D,texture);
+   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,source);
+   source=null;
+   setStatus('写真を表示中');
+  }catch(e){}
+ }
+ if(sourceType==='video'&&video.readyState>=2){
+  try{
+   gl.bindTexture(gl.TEXTURE_2D,texture);
+   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,video);
+  }catch(e){}
+ }
  gl.useProgram(program);gl.uniform1i(gl.getUniformLocation(program,'tex'),0);
  const yawLoc=gl.getUniformLocation(program,'yaw'),pitchLoc=gl.getUniformLocation(program,'pitch'),fovLoc=gl.getUniformLocation(program,'fov'),aspLoc=gl.getUniformLocation(program,'aspect'),eyeLoc=gl.getUniformLocation(program,'eyeShift');
  const views=vr?2:1;
  for(let i=0;i<views;i++){
   const w=vr?Math.floor(canvas.width/2):canvas.width;gl.viewport(vr?i*w:0,0,w,canvas.height);
-  gl.uniform1f(yawLoc,yaw+(gyro?gyroOffset:0)+(vr?(i===0?-.025:.025):0));gl.uniform1f(pitchLoc,pitch);
+  gl.uniform1f(yawLoc,yaw+(vr?(i===0?-.025:.025):0));gl.uniform1f(pitchLoc,pitch);
   gl.uniform1f(fovLoc,fovDeg);gl.uniform1f(aspLoc,w/canvas.height);gl.uniform1f(eyeLoc,0.0);
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
  }
 }
 function setStatus(s){status.textContent=s}
 function fmt(t){if(!isFinite(t)||t<0)t=0;return String(Math.floor(t/60)).padStart(2,'0')+':'+String(Math.floor(t%60)).padStart(2,'0')}
+
 fileInput.addEventListener('change',()=>{
  const f=fileInput.files&&fileInput.files[0];if(!f)return;
- if(objectURL)URL.revokeObjectURL(objectURL);objectURL=URL.createObjectURL(f);filename.textContent=f.name+'（'+(f.size/1024/1024).toFixed(1)+' MB）';
- yaw=0;pitch=0;
- if(f.type.startsWith('image/')){
-  video.pause();video.removeAttribute('src');video.load();sourceType='image';source=new Image();source.onload=()=>{setStatus('写真を表示中');playBtn.disabled=true;seek.disabled=true;current.textContent='写真';duration.textContent='';};source.onerror=()=>setStatus('画像を読み込めません。JPEG等をお試しください');source.src=objectURL;
- }else if(f.type.startsWith('video/')){
-  source=null;sourceType='video';video.src=objectURL;video.load();setStatus('動画を読み込み中…');playBtn.disabled=false;seek.disabled=false;
- }else{setStatus('このファイル形式には対応していません');}
+ if(objectURL)URL.revokeObjectURL(objectURL);objectURL=URL.createObjectURL(f);
+ filename.textContent=f.name+'（'+(f.size/1024/1024).toFixed(1)+' MB）';
+ yaw=0;pitch=0;targetYaw=0;targetPitch=0;
+
+ // MIMEタイプに加え、拡張子による判定も追加（スマホ等でのMIMEタイプ抜け対策）
+ const name = f.name.toLowerCase();
+ const isImage = f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/.test(name);
+ const isVideo = f.type.startsWith('video/') || /\.(mp4|mov|m4v|webm|ogv)$/.test(name);
+
+ if(isImage){
+  video.pause();video.removeAttribute('src');video.load();
+  sourceType='image';source=new Image();
+  source.onload=()=>{
+   setStatus('写真を表示中');
+   playBtn.disabled=true;seek.disabled=true;current.textContent='写真';duration.textContent='';
+  };
+  source.onerror=()=>setStatus('画像を読み込めません。JPEGやPNG形式をお試しください');
+  source.src=objectURL;
+ }else if(isVideo){
+  source=null;sourceType='video';
+  video.src=objectURL;video.load();
+  setStatus('動画を読み込み中…');
+  playBtn.disabled=false;seek.disabled=false;
+ }else{
+  setStatus('このファイル形式には対応していません（JPEG, PNG, MP4, MOV等を選択してください）');
+ }
 });
-video.addEventListener('loadedmetadata',()=>{duration.textContent=fmt(video.duration);setStatus('動画を読み込みました');});
+
+video.addEventListener('loadedmetadata',()=>{duration.textContent=fmt(video.duration);setStatus('動画を読み込みました（再生ボタンを押してください）');});
 video.addEventListener('canplay',()=>setStatus('動画を再生できます'));
-video.addEventListener('error',()=>setStatus('動画を再生できません。MP4（H.264/AAC）をお試しください'));
+video.addEventListener('error',()=>setStatus('動画を再生できません。MP4（H.264/AAC）等をお試しください'));
 video.addEventListener('timeupdate',()=>{if(video.duration){seek.value=Math.round(video.currentTime/video.duration*1000);current.textContent=fmt(video.currentTime)}});
 playBtn.addEventListener('click',async()=>{if(video.paused){try{await video.play();playBtn.textContent='❚❚ 一時停止'}catch(e){setStatus('再生できません。別の動画形式をお試しください')}}else{video.pause();playBtn.textContent='▶ 再生'}});
 video.addEventListener('pause',()=>playBtn.textContent='▶ 再生');video.addEventListener('play',()=>playBtn.textContent='❚❚ 一時停止');
 seek.addEventListener('input',()=>{if(video.duration)video.currentTime=video.duration*(Number(seek.value)/1000)});
 fov.addEventListener('input',()=>{fovDeg=Number(fov.value);fovVal.textContent=fov.value});
 quality.addEventListener('change',resize);window.addEventListener('resize',resize);
-canvas.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId)});
-canvas.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;yaw-=dx*.005;pitch=Math.max(-1.52,Math.min(1.52,pitch+dy*.005))});
+
+canvas.addEventListener('pointerdown',e=>{
+ dragging=true;lastX=e.clientX;lastY=e.clientY;canvas.setPointerCapture(e.pointerId);
+ if(gyro){ targetYaw=yaw; targetPitch=pitch; gyroBaseAlpha=null; }
+});
+canvas.addEventListener('pointermove',e=>{
+ if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;
+ yaw-=dx*.005; pitch=Math.max(-1.52,Math.min(1.52,pitch+dy*.005));
+ targetYaw=yaw; targetPitch=pitch;
+});
 canvas.addEventListener('pointerup',()=>dragging=false);canvas.addEventListener('pointercancel',()=>dragging=false);
+
 canvas.addEventListener('wheel',e=>{e.preventDefault();fovDeg=Math.max(45,Math.min(120,fovDeg+Math.sign(e.deltaY)*3));fov.value=fovDeg;fovVal.textContent=fovDeg},{passive:false});
-document.getElementById('resetBtn').addEventListener('click',()=>{yaw=0;pitch=0;gyroOffset=0});
+document.getElementById('resetBtn').addEventListener('click',()=>{yaw=0;pitch=0;targetYaw=0;targetPitch=0;gyroBaseAlpha=null});
 document.getElementById('vrBtn').addEventListener('click',()=>{vr=!vr;document.body.classList.toggle('vr',vr);document.getElementById('vrBtn').textContent=vr?'通常表示へ':'VRモード';resize()});
+
 const fullscreenBtn=document.getElementById('fullscreenBtn');
 const exitFullscreenFloat=document.getElementById('exitFullscreenFloat');
 async function enterFullscreen(){
  try{
-  // Fullscreen the whole page, not just the canvas, so controls remain available.
   if(!document.fullscreenElement){
    const target=document.documentElement;
    if(target.requestFullscreen) await target.requestFullscreen();
@@ -164,9 +247,10 @@ document.addEventListener('fullscreenchange',()=>{
  const active=!!document.fullscreenElement;
  document.body.classList.toggle('fullscreen-active',active);
  fullscreenBtn.textContent=active?'全画面を終了':'全画面';
+ resize();
 });
 
-let gyroEnabled=false, gyroListener=null, gyroBaseAlpha=null, gyroBaseBeta=null, gyroBaseGamma=null;
+let gyroEnabled=false, gyroListener=null, gyroBaseAlpha=null, gyroBaseBeta=null;
 let yawAtGyro=0, pitchAtGyro=0;
 function angleDelta(current,base){
  let d=current-base;
@@ -177,7 +261,8 @@ document.getElementById('gyroBtn').addEventListener('click',async()=>{
  try{
   if(gyroEnabled){
    if(gyroListener)window.removeEventListener('deviceorientation',gyroListener);
-   gyroEnabled=false;gyroListener=null;gyroBaseAlpha=gyroBaseBeta=gyroBaseGamma=null;
+   gyroEnabled=false;gyroListener=null;gyroBaseAlpha=gyroBaseBeta=null;
+   gyro=false;
    document.getElementById('gyroBtn').textContent='端末の向きで操作';
    setStatus('端末の向きによる操作を停止しました');return;
   }
@@ -188,20 +273,21 @@ document.getElementById('gyroBtn').addEventListener('click',async()=>{
    const permission=await DeviceOrientationEvent.requestPermission();
    if(permission!=='granted'){setStatus('端末の向きの利用が許可されませんでした');return;}
   }
-  gyroBaseAlpha=gyroBaseBeta=gyroBaseGamma=null;
+  gyroBaseAlpha=gyroBaseBeta=null;
   yawAtGyro=yaw;pitchAtGyro=pitch;
   gyroListener=(e)=>{
    if(e.alpha==null || e.beta==null)return;
-   if(gyroBaseAlpha===null){gyroBaseAlpha=e.alpha;gyroBaseBeta=e.beta;gyroBaseGamma=e.gamma||0;}
-   // Relative movement from the orientation at activation avoids a sudden jump.
+   if(gyroBaseAlpha===null){
+    gyroBaseAlpha=e.alpha;
+    gyroBaseBeta=e.beta;
+    yawAtGyro=yaw;
+    pitchAtGyro=pitch;
+   }
    const da=angleDelta(e.alpha,gyroBaseAlpha);
    const db=angleDelta(e.beta,gyroBaseBeta);
-   const dg=angleDelta(e.gamma||0,gyroBaseGamma||0);
-   // Alpha primarily controls heading; beta controls up/down. Gamma adds a small
-   // correction for phones held in landscape orientation.
-   yaw=yawAtGyro-da*Math.PI/180;
-   pitch=Math.max(-1.48,Math.min(1.48,pitchAtGyro+db*Math.PI/180));
-   if(Math.abs(dg)>1) pitch=Math.max(-1.48,Math.min(1.48,pitchAtGyro+dg*Math.PI/180));
+   
+   targetYaw=yawAtGyro-da*Math.PI/180;
+   targetPitch=Math.max(-1.48,Math.min(1.48,pitchAtGyro-db*Math.PI/180));
    gyro=true;
   };
   window.addEventListener('deviceorientation',gyroListener);
