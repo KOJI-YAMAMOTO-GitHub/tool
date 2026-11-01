@@ -1,613 +1,116 @@
-<!DOCTYPE html>
-<html lang="ja" class="h-full">
+<!doctype html>
+<html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マルチツール (定規・分度器・コンパス・水平器)</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                }
-            }
-        }
-    </script>
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            touch-action: manipulation;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        /* カスタムスクロールバー非表示 */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#14243a">
+<title>ポケット計測ツール</title>
+<style>
+:root{--bg:#f2f5f9;--panel:#fff;--ink:#182638;--muted:#68778a;--blue:#1769aa;--line:#d9e1ea;--accent:#18a0a6}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{background:#14243a;color:white;padding:16px 18px 13px}header h1{font-size:19px;margin:0 0 4px}header p{font-size:12px;color:#c6d2df;margin:0}
+nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px;background:#14243a;position:sticky;top:0;z-index:5}
+nav button{border:1px solid #526277;background:#263b55;color:#eaf1f8;border-radius:10px;padding:10px 2px;font-size:13px}
+nav button.active{background:#fff;color:#14243a;border-color:#fff;font-weight:700}
+main{max-width:760px;margin:auto;padding:12px}
+.panel{background:var(--panel);border-radius:16px;padding:15px;margin-bottom:12px;box-shadow:0 2px 12px #172b4210}
+h2{font-size:17px;margin:0 0 8px}.hint{font-size:12px;color:var(--muted);line-height:1.55}
+.tool{display:none}.tool.active{display:block}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button.action{background:var(--blue);color:white;border:0;border-radius:10px;padding:11px 14px;font-size:14px}
+button.secondary{background:#e8eef5;color:#24384d;border:0;border-radius:10px;padding:10px 12px;font-size:13px}
+input[type=range]{width:100%;accent-color:var(--blue)}input[type=number]{width:92px;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:16px}
+label{font-size:13px;color:var(--muted)}
+.ruler-wrap{overflow-x:auto;padding:20px 0 10px;touch-action:pan-x}
+.ruler{height:88px;position:relative;min-width:100%;background:linear-gradient(#fff,#f8fbff);border-bottom:2px solid #27394d}
+.tick{position:absolute;bottom:0;width:1px;background:#26394e}.tick.mm{height:9px}.tick.cm{height:19px;width:1.5px}.tick.big{height:30px;width:2px}
+.tick-label{position:absolute;top:5px;transform:translateX(-50%);font-size:11px;color:#33465b}
+.scale-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+.angle-stage{height:310px;display:grid;place-items:center;touch-action:none}
+.protractor{width:min(88vw,330px);height:auto;overflow:visible}
+.angle-readout{font-size:34px;font-weight:750;text-align:center;font-variant-numeric:tabular-nums}
+.compass-stage{height:300px;display:grid;place-items:center}
+.compass{width:min(78vw,280px);aspect-ratio:1;border:8px solid #dce5ed;border-radius:50%;position:relative;background:radial-gradient(circle,#fff 0 54%,#f0f5fa 55% 100%);box-shadow:inset 0 0 0 1px #c7d3df}
+.compass:before{content:"";position:absolute;inset:10%;border:1px solid #b8c7d6;border-radius:50%}
+.cardinal{position:absolute;font-weight:800;font-size:17px;transform:translate(-50%,-50%)}.north{top:7%;left:50%;color:#d33}.east{top:50%;right:0;transform:translate(50%,-50%)}.south{bottom:0;left:50%;transform:translate(-50%,50%)}.west{top:50%;left:0;transform:translate(-50%,-50%)}
+.needle{position:absolute;left:50%;top:50%;width:0;height:0;transform:translate(-50%,-50%) rotate(0deg);transition:transform .12s linear}
+.needle:before{content:"";position:absolute;left:-7px;top:-104px;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:104px solid #d94343}
+.needle:after{content:"";position:absolute;left:-7px;top:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:75px solid #63788e}
+.level-stage{height:280px;display:grid;place-items:center}
+.level-circle{width:min(76vw,270px);aspect-ratio:1;border:3px solid #7b8ea2;border-radius:50%;position:relative;background:radial-gradient(circle,#eaf6f6 0 3px,transparent 4px),linear-gradient(90deg,transparent 49.7%,#a7b8c8 50%,transparent 50.3%),linear-gradient(transparent 49.7%,#a7b8c8 50%,transparent 50.3%),#f9fcff;overflow:hidden}
+.level-bubble{position:absolute;width:34px;height:34px;border-radius:50%;background:#18a0a6aa;border:2px solid #087f86;left:50%;top:50%;transform:translate(-50%,-50%);box-shadow:0 1px 5px #0002}
+.level-cross{position:absolute;left:50%;top:50%;width:12px;height:12px;border:1px solid #7b8ea2;border-radius:50%;transform:translate(-50%,-50%)}
+.big-reading{text-align:center;font-size:30px;font-weight:750;font-variant-numeric:tabular-nums}
+.status{padding:10px 12px;background:#edf4f9;border-radius:10px;font-size:13px;color:#42576d;margin-top:10px}
+small{color:var(--muted)}
+@media(min-width:600px){main{padding:18px}.angle-stage{height:360px}}
+</style>
 </head>
-<body class="bg-slate-950 text-slate-100 h-full flex flex-col overflow-hidden">
-
-    <!-- ヘッダー -->
-    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between shrink-0 z-20">
-        <div class="flex items-center space-x-2">
-            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/30">
-                <i class="fa-solid fa-toolbox text-sm"></i>
-            </div>
-            <h1 id="app-title" class="font-bold text-base tracking-tight">スマート定規 & ツール</h1>
-        </div>
-        <div class="flex items-center space-x-2">
-            <button id="info-btn" onclick="openInfoModal()" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-300 transition">
-                <i class="fa-solid fa-circle-question"></i>
-            </button>
-        </div>
-    </header>
-
-    <!-- メインコンテンツ領域 (タブごとの画面) -->
-    <main class="flex-1 relative overflow-hidden bg-slate-950 flex flex-col">
-
-        <!-- 1. 定規 (Ruler) -->
-        <div id="tab-ruler" class="tab-content absolute inset-0 flex flex-col p-4 overflow-hidden">
-            <div class="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-3 mb-3 shrink-0 flex flex-col gap-2">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-medium text-slate-400">単位・向き</span>
-                    <div class="flex space-x-2">
-                        <button onclick="setRulerUnit('cm')" id="unit-cm-btn" class="px-3 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition">CM / MM</button>
-                        <button onclick="setRulerUnit('inch')" id="unit-inch-btn" class="px-3 py-1 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 transition">INCH</button>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <span class="text-xs text-slate-400 shrink-0">実寸調整 (DPI)</span>
-                    <input type="range" id="dpi-slider" min="50" max="150" value="96" class="w-full accent-indigo-500 h-1.5 bg-slate-700 rounded-lg cursor-pointer" oninput="updateRulerScale(this.value)">
-                    <span id="dpi-value" class="text-xs font-mono text-slate-300 w-10 text-right">96</span>
-                </div>
-            </div>
-
-            <!-- 定規本体コンテナ -->
-            <div class="flex-1 bg-amber-50/10 dark:bg-slate-900 border border-slate-800 rounded-2xl relative overflow-hidden flex flex-col justify-center shadow-inner" id="ruler-container">
-                <div class="absolute inset-x-4 h-32 bg-amber-100/90 dark:bg-slate-800/90 border border-amber-300 dark:border-slate-700 rounded-xl shadow-lg flex flex-col justify-between p-2 select-none overflow-x-auto no-scrollbar" id="ruler-strip" style="cursor: ew-resize;">
-                    <!-- 目盛りを描画するエリア -->
-                    <div class="relative w-[3000px] h-full flex flex-col justify-between" id="ruler-ticks-area">
-                        <!-- 上部数値・目盛り -->
-                        <div class="flex items-start h-full relative" id="ruler-ticks"></div>
-                        <!-- 計測用スライドバー (指でタッチして動かせる) -->
-                        <div id="ruler-measure-line" class="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10 pointer-events-none transition-all duration-75" style="left: 150px;">
-                            <div class="absolute -top-6 -translate-x-1/2 bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap" id="ruler-measure-text">0.0 cm</div>
-                            <div class="absolute -bottom-6 -translate-x-1/2 bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow whitespace-nowrap">起点</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="absolute bottom-4 inset-x-4 text-center text-xs text-slate-400 bg-slate-900/60 py-2 rounded-xl border border-slate-800/50">
-                    💡 定規を横にスワイプ、または赤いマーカーをタッチして長さを計測できます
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. 分度器 (Protractor) -->
-        <div id="tab-protractor" class="tab-content absolute inset-0 hidden flex flex-col p-4 overflow-hidden items-center justify-center">
-            <div class="absolute top-4 inset-x-4 bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-3 flex items-center justify-between z-10">
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-slate-400">計測角度:</span>
-                    <span id="protractor-angle-display" class="text-lg font-bold font-mono text-indigo-400">0.0°</span>
-                </div>
-                <button onclick="resetProtractor()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
-                    リセット
-                </button>
-            </div>
-
-            <!-- 分度器表示エリア -->
-            <div id="protractor-area" class="w-full h-full flex items-center justify-center relative touch-none">
-                <div id="protractor-wheel" class="relative w-[340px] h-[340px] md:w-[400px] md:h-[400px] rounded-full border-2 border-indigo-500/50 bg-indigo-950/20 backdrop-blur-sm shadow-2xl flex items-center justify-center transition-transform duration-75 cursor-grab active:cursor-grabbing" style="transform: rotate(0deg);">
-                    <!-- SVG 目盛り円盤 -->
-                    <svg class="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 400 400">
-                        <circle cx="200" cy="200" r="180" fill="none" stroke="rgba(99, 102, 241, 0.3)" stroke-width="2"/>
-                        <circle cx="200" cy="200" r="140" fill="none" stroke="rgba(99, 102, 241, 0.2)" stroke-width="1" stroke-dasharray="4 4"/>
-                        <!-- 角度目盛り線はJSで動的生成、またはここに描画 -->
-                        <g id="protractor-svg-ticks"></g>
-                    </svg>
-                    <!-- 中心点 -->
-                    <div class="w-3 h-3 rounded-full bg-indigo-500 ring-4 ring-indigo-500/30 z-10"></div>
-                    <!-- アーム (タッチ回転用) -->
-                    <div id="protractor-arm" class="absolute top-0 bottom-1/2 left-1/2 w-0.5 bg-rose-500 origin-bottom z-20 pointer-events-none" style="transform: rotate(45deg);">
-                        <div class="absolute -top-2 -translate-x-1/2 w-4 h-4 rounded-full bg-rose-500 shadow-md"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="absolute bottom-4 inset-x-4 text-center text-xs text-slate-400 bg-slate-900/60 py-2 rounded-xl border border-slate-800/50">
-                💡 円盤をドラッグして位置移動、外周アームで角度を計測できます
-            </div>
-        </div>
-
-        <!-- 3. コンパス (Compass) -->
-        <div id="tab-compass" class="tab-content absolute inset-0 hidden flex flex-col p-4 items-center justify-center">
-            <!-- センサー許可ボタン (iOS用) -->
-            <div id="compass-permission-box" class="absolute inset-4 bg-slate-900/95 backdrop-blur z-30 rounded-3xl border border-slate-800 flex flex-col items-center justify-center p-6 text-center hidden">
-                <div class="w-16 h-16 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-2xl mb-4">
-                    <i class="fa-solid fa-compass"></i>
-                </div>
-                <h3 class="font-bold text-lg mb-2">コンパスのアクセス許可</h3>
-                <p class="text-xs text-slate-400 mb-6 leading-relaxed">正確な方位を表示するため、デバイスのセンサー（方角・傾き）の利用を許可してください。</p>
-                <button onclick="requestCompassPermission()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/30 transition">
-                    センサーを有効にする
-                </button>
-            </div>
-
-            <div class="flex flex-col items-center justify-center flex-1 w-full max-w-xs">
-                <div class="text-3xl font-bold tracking-wider mb-1 font-mono text-indigo-400" id="compass-deg">--°</div>
-                <div class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8" id="compass-dir">--</div>
-
-                <!-- コンパス円盤 -->
-                <div class="relative w-72 h-72 rounded-full border-4 border-slate-800 bg-slate-900/80 shadow-2xl flex items-center justify-center">
-                    <div id="compass-wheel" class="absolute inset-2 rounded-full border border-slate-700/60 transition-transform duration-100 flex items-center justify-center" style="transform: rotate(0deg);">
-                        <!-- N 標識 -->
-                        <div class="absolute top-2 text-rose-500 font-black text-lg">N</div>
-                        <div class="absolute bottom-2 text-slate-400 font-bold text-sm">S</div>
-                        <div class="absolute left-3 text-slate-400 font-bold text-sm">W</div>
-                        <div class="absolute right-3 text-slate-400 font-bold text-sm">E</div>
-                        <!-- 針 -->
-                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div class="w-1.5 h-36 bg-gradient-to-t from-slate-700 via-rose-500 to-rose-600 rounded-full -translate-y-4 shadow-lg"></div>
-                        </div>
-                    </div>
-                    <div class="w-4 h-4 rounded-full bg-slate-800 border-2 border-slate-600 z-10"></div>
-                </div>
-            </div>
-            <div class="w-full text-center text-xs text-slate-400 bg-slate-900/60 py-2 rounded-xl border border-slate-800/50 mt-4">
-                💡 スマホを水平にしてお持ちください
-            </div>
-        </div>
-
-        <!-- 4. 水平器 (Spirit Level) -->
-        <div id="tab-level" class="tab-content absolute inset-0 hidden flex flex-col p-4 items-center justify-center">
-            <!-- センサー許可ボタン (iOS用) -->
-            <div id="level-permission-box" class="absolute inset-4 bg-slate-900/95 backdrop-blur z-30 rounded-3xl border border-slate-800 flex flex-col items-center justify-center p-6 text-center hidden">
-                <div class="w-16 h-16 rounded-2xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-2xl mb-4">
-                    <i class="fa-solid fa-arrows-to-circle"></i>
-                </div>
-                <h3 class="font-bold text-lg mb-2">水平器のアクセス許可</h3>
-                <p class="text-xs text-slate-400 mb-6 leading-relaxed">傾きを測定するため、加速度センサーの利用を許可してください。</p>
-                <button onclick="requestLevelPermission()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow-lg shadow-emerald-600/30 transition">
-                    センサーを有効にする
-                </button>
-            </div>
-
-            <div class="flex flex-col items-center justify-center flex-1 w-full max-w-sm">
-                <!-- 角度表示パネル -->
-                <div id="level-card" class="w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-6 text-center transition-colors duration-300 shadow-xl">
-                    <div class="text-xs text-slate-400 mb-1 font-medium">傾き角度 (X / Y)</div>
-                    <div class="text-3xl font-extrabold font-mono text-slate-100 mb-2" id="level-deg">0.0° / 0.0°</div>
-                    <div class="inline-px px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-800 text-slate-300 transition-colors" id="level-status-badge">測定中</div>
-                </div>
-
-                <!-- バブル気泡水準器盤 -->
-                <div id="level-bubble-box" class="relative w-64 h-64 rounded-full border-4 border-slate-800 bg-slate-900/80 shadow-2xl flex items-center justify-center overflow-hidden transition-colors duration-300">
-                    <!-- 基準クロスライン -->
-                    <div class="absolute inset-x-0 h-px bg-slate-700/60"></div>
-                    <div class="absolute inset-y-0 w-px bg-slate-700/60"></div>
-                    <div class="absolute w-20 h-20 rounded-full border-2 border-dashed border-slate-600/60 flex items-center justify-center"></div>
-                    <div class="absolute w-6 h-6 rounded-full border border-emerald-500/50"></div>
-                    
-                    <!-- 動く気泡 -->
-                    <div id="bubble" class="absolute w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/50 transition-all duration-75" style="transform: translate(0px, 0px);"></div>
-                </div>
-
-                <!-- ゼロ点調整ボタン -->
-                <button onclick="calibrateLevel()" class="mt-6 px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition shadow-md border border-slate-700 flex items-center gap-2">
-                    <i class="fa-solid fa-crosshairs"></i> ゼロ点調整 (キャリブレーション)
-                </button>
-            </div>
-            
-            <div class="w-full text-center text-xs text-slate-400 bg-slate-900/60 py-2 rounded-xl border border-slate-800/50 mt-4">
-                💡 気泡が中央の丸に入ると完全な水平です
-            </div>
-        </div>
-
-    </main>
-
-    <!-- フッターナビゲーションバー -->
-    <nav class="bg-slate-900 border-t border-slate-800 py-2 px-4 flex justify-around items-center shrink-0 z-20">
-        <button onclick="switchTab('ruler')" id="nav-ruler" class="flex flex-col items-center space-y-1 text-indigo-400 transition w-16 py-1">
-            <i class="fa-solid fa-ruler-combined text-lg"></i>
-            <span class="text-[10px] font-medium">定規</span>
-        </button>
-        <button onclick="switchTab('protractor')" id="nav-protractor" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-200 transition w-16 py-1">
-            <i class="fa-solid fa-compass-drafting text-lg"></i>
-            <span class="text-[10px] font-medium">分度器</span>
-        </button>
-        <button onclick="switchTab('compass')" id="nav-compass" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-200 transition w-16 py-1">
-            <i class="fa-solid fa-location-arrow text-lg"></i>
-            <span class="text-[10px] font-medium">コンパス</span>
-        </button>
-        <button onclick="switchTab('level')" id="nav-level" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-200 transition w-16 py-1">
-            <i class="fa-solid fa-vr-cardboard text-lg"></i>
-            <span class="text-[10px] font-medium">水平器</span>
-        </button>
-    </nav>
-
-    <!-- 情報モーダル -->
-    <div id="info-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative">
-            <h3 class="font-bold text-lg mb-3 flex items-center gap-2">
-                <i class="fa-solid fa-circle-info text-indigo-400"></i> マルチツールについて
-            </h3>
-            <p class="text-xs text-slate-300 leading-relaxed mb-4">
-                スマホの画面とセンサーを活用した実用ツール集です。<br><br>
-                • <b>定規</b>: DPIスライダーで実物のカードや定規に合わせて目盛りを補正できます。<br>
-                • <b>分度器</b>: 画面をタッチして動かし、角度を測定します。<br>
-                • <b>コンパス・水平器</b>: 初回アクセス時にセンサー許可が必要です。
-            </p>
-            <button onclick="closeInfoModal()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl text-sm transition">
-                閉じる
-            </button>
-        </div>
-    </div>
-
-    <!-- JavaScript ロジック -->
-    <script>
-        // タブ切り替えロジック
-        function switchTab(tabName) {
-            const tabs = ['ruler', 'protractor', 'compass', 'level'];
-            tabs.forEach(t => {
-                const el = document.getElementById(`tab-${t}`);
-                const nav = document.getElementById(`nav-${t}`);
-                if (t === tabName) {
-                    el.classList.remove('hidden');
-                    nav.classList.remove('text-slate-400');
-                    nav.classList.add('text-indigo-400');
-                } else {
-                    el.classList.add('hidden');
-                    nav.classList.remove('text-indigo-400');
-                    nav.classList.add('text-slate-400');
-                }
-            });
-
-            // タブごとのタイトル更新
-            const titles = {
-                'ruler': 'スマート定規',
-                'protractor': 'プロトラクター (分度器)',
-                'compass': 'コンパス (方位磁針)',
-                'level': 'バブル水準器 (水平器)'
-            };
-            document.getElementById('app-title').innerText = titles[tabName];
-
-            // コンパス・水平器タブが開かれたとき、iOSの権限状態を確認
-            if (tabName === 'compass') {
-                checkCompassPermission();
-            } else if (tabName === 'level') {
-                checkLevelPermission();
-            }
-        }
-
-        // --- 1. 定規ロジック ---
-        let currentUnit = 'cm';
-        let dpi = 96;
-
-        function setRulerUnit(unit) {
-            currentUnit = unit;
-            const cmBtn = document.getElementById('unit-cm-btn');
-            const inchBtn = document.getElementById('unit-inch-btn');
-            if (unit === 'cm') {
-                cmBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition";
-                inchBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 transition";
-            } else {
-                inchBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition";
-                cmBtn.className = "px-3 py-1 text-xs font-semibold rounded-lg bg-slate-800 text-slate-300 transition";
-            }
-            renderRulerTicks();
-        }
-
-        function updateRulerScale(val) {
-            dpi = parseInt(val);
-            document.getElementById('dpi-value').innerText = dpi;
-            renderRulerTicks();
-        }
-
-        function renderRulerTicks() {
-            const ticksArea = document.getElementById('ruler-ticks');
-            ticksArea.innerHTML = '';
-            
-            // 1インチあたりのピクセル数 = dpi
-            // 1cmあたりのピクセル数 = dpi / 2.54
-            const unitPx = currentUnit === 'cm' ? (dpi / 2.54) : dpi;
-            const totalUnits = currentUnit === 'cm' ? 50 : 20; // 50cm分 or 20inch分
-
-            for (let i = 0; i <= totalUnits * 10; i++) {
-                const tick = document.createElement('div');
-                tick.className = "absolute bottom-0 flex flex-col items-center";
-                const pos = i * (unitPx / 10);
-                tick.style.left = `${pos}px`;
-
-                let heightClass = "h-2 bg-amber-800/40 dark:bg-slate-500";
-                let showLabel = false;
-                let labelText = "";
-
-                if (i % 10 === 0) {
-                    heightClass = "h-5 bg-amber-900 dark:bg-slate-200 w-0.5";
-                    showLabel = true;
-                    labelText = (i / 10).toString();
-                } else if (i % 5 === 0) {
-                    heightClass = "h-3.5 bg-amber-800/70 dark:bg-slate-400 w-0.5";
-                } else {
-                    heightClass = "h-2 bg-amber-800/40 dark:bg-slate-600 w-px";
-                }
-
-                tick.innerHTML = `<div class="${heightClass}"></div>`;
-                if (showLabel) {
-                    const label = document.createElement('span');
-                    label.className = "text-[10px] font-mono text-amber-900 dark:text-slate-300 mt-1 select-none";
-                    label.innerText = labelText;
-                    tick.appendChild(label);
-                }
-                ticksArea.appendChild(tick);
-            }
-        }
-
-        // 定規の計測ドラッグ機能
-        const rulerStrip = document.getElementById('ruler-strip');
-        const measureLine = document.getElementById('ruler-measure-line');
-        const measureText = document.getElementById('ruler-measure-text');
-        let isMeasuring = false;
-
-        rulerStrip.addEventListener('pointerdown', (e) => {
-            isMeasuring = true;
-            updateMeasurePosition(e);
-        });
-        window.addEventListener('pointermove', (e) => {
-            if (!isMeasuring) return;
-            updateMeasurePosition(e);
-        });
-        window.addEventListener('pointerup', () => {
-            isMeasuring = false;
-        });
-
-        function updateMeasurePosition(e) {
-            const rect = rulerStrip.getBoundingClientRect();
-            let x = e.clientX - rect.left + rulerStrip.scrollLeft;
-            if (x < 0) x = 0;
-            measureLine.style.left = `${x}px`;
-
-            const unitPx = currentUnit === 'cm' ? (dpi / 2.54) : dpi;
-            const distance = x / unitPx;
-            measureText.innerText = `${distance.toFixed(1)} ${currentUnit}`;
-        }
-
-
-        // --- 2. 分度器ロジック ---
-        const protractorWheel = document.getElementById('protractor-wheel');
-        const protractorArea = document.getElementById('protractor-area');
-        const protractorAngleDisplay = document.getElementById('protractor-angle-display');
-        const protractorArm = document.getElementById('protractor-arm');
-        const svgTicks = document.getElementById('protractor-svg-ticks');
-
-        // SVGの角度目盛りを描画
-        function initProtractorTicks() {
-            let svgContent = '';
-            for (let i = 0; i < 360; i += 5) {
-                const angleRad = (i - 90) * (Math.PI / 180);
-                const rOuter = 180;
-                const rInner = (i % 30 === 0) ? 165 : 172;
-                const x1 = 200 + rOuter * Math.cos(angleRad);
-                const y1 = 200 + rOuter * Math.sin(angleRad);
-                const x2 = 200 + rInner * Math.cos(angleRad);
-                const y2 = 200 + rInner * Math.sin(angleRad);
-                svgContent += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(99, 102, 241, 0.5)" stroke-width="${i % 30 === 0 ? 2 : 1}"/>`;
-                
-                if (i % 30 === 0) {
-                    const rText = 145;
-                    const tx = 200 + rText * Math.cos(angleRad);
-                    const ty = 200 + rText * Math.sin(angleRad);
-                    svgContent += `<text x="${tx}" y="${ty}" fill="rgba(199, 210, 254, 0.8)" font-size="10" font-family="Inter" text-anchor="middle" dominant-baseline="central" transform="rotate(${i}, ${tx}, ${ty})">${i}°</text>`;
-                }
-            }
-            svgTicks.innerHTML = svgContent;
-        }
-        initProtractorTicks();
-
-        let pCurrentAngle = 45;
-        let isDraggingProtractor = false;
-        let pCenterX = 0, pCenterY = 0;
-
-        protractorWheel.addEventListener('pointerdown', (e) => {
-            isDraggingProtractor = true;
-            const rect = protractorWheel.getBoundingClientRect();
-            pCenterX = rect.left + rect.width / 2;
-            pCenterY = rect.top + rect.height / 2;
-            e.stopPropagation();
-        });
-
-        window.addEventListener('pointermove', (e) => {
-            if (!isDraggingProtractor) return;
-            const dx = e.clientX - pCenterX;
-            const dy = e.clientY - pCenterY;
-            let rad = Math.atan2(dy, dx);
-            let deg = rad * (180 / Math.PI) + 90;
-            if (deg < 0) deg += 360;
-
-            pCurrentAngle = Math.round(deg * 10) / 10;
-            protractorArm.style.transform = `rotate(${pCurrentAngle}deg)`;
-            protractorAngleDisplay.innerText = `${pCurrentAngle.toFixed(1)}°`;
-        });
-
-        window.addEventListener('pointerup', () => {
-            isDraggingProtractor = false;
-        });
-
-        function resetProtractor() {
-            pCurrentAngle = 0;
-            protractorArm.style.transform = `rotate(0deg)`;
-            protractorAngleDisplay.innerText = `0.0°`;
-        }
-
-
-        // --- 3. コンパスロジック ---
-        let compassInitialized = false;
-
-        function checkCompassPermission() {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                document.getElementById('compass-permission-box').classList.remove('hidden');
-            } else {
-                window.addEventListener('deviceorientation', handleOrientation, true);
-                compassInitialized = true;
-            }
-        }
-
-        function requestCompassPermission() {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().then(response => {
-                    if (response === 'granted') {
-                        window.addEventListener('deviceorientation', handleOrientation, true);
-                        document.getElementById('compass-permission-box').classList.add('hidden');
-                        compassInitialized = true;
-                    } else {
-                        alert('センサーのアクセスが拒否されました');
-                    }
-                }).catch(console.error);
-            }
-        }
-
-        function handleOrientation(event) {
-            let heading = event.alpha; // 0 - 360
-            if (event.webkitCompassHeading) {
-                heading = event.webkitCompassHeading; // iOSの場合正確な磁気方位
-            }
-
-            if (heading !== null && heading !== undefined) {
-                const deg = Math.round(heading);
-                document.getElementById('compass-deg').innerText = `${deg}°`;
-                document.getElementById('compass-wheel').style.transform = `rotate(${-deg}deg)`;
-
-                let dir = '北';
-                if (deg >= 22.5 && deg < 67.5) dir = '北東';
-                else if (deg >= 67.5 && deg < 112.5) dir = '東';
-                else if (deg >= 112.5 && deg < 157.5) dir = '南東';
-                else if (deg >= 157.5 && deg < 202.5) dir = '南';
-                else if (deg >= 202.5 && deg < 247.5) dir = '南西';
-                else if (deg >= 247.5 && deg < 292.5) dir = '西';
-                else if (deg >= 292.5 && deg < 337.5) dir = '北西';
-                document.getElementById('compass-dir').innerText = dir;
-            }
-        }
-
-
-        // --- 4. 水平器ロジック ---
-        let levelInitialized = false;
-        let zeroOffsetX = 0;
-        let zeroOffsetY = 0;
-
-        function checkLevelPermission() {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                document.getElementById('level-permission-box').classList.remove('hidden');
-            } else {
-                window.addEventListener('deviceorientation', handleLevelOrientation, true);
-                levelInitialized = true;
-            }
-        }
-
-        function requestLevelPermission() {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().then(response => {
-                    if (response === 'granted') {
-                        window.addEventListener('deviceorientation', handleLevelOrientation, true);
-                        document.getElementById('level-permission-box').classList.add('hidden');
-                        levelInitialized = true;
-                    } else {
-                        alert('センサーのアクセスが拒否されました');
-                    }
-                }).catch(console.error);
-            }
-        }
-
-        function handleLevelOrientation(event) {
-            // beta: 前後傾き (-180 ~ 180), gamma: 左右傾き (-90 ~ 90)
-            let beta = event.beta; 
-            let gamma = event.gamma;
-
-            if (beta !== null && gamma !== null) {
-                // キャリブレーションオフセット適用
-                let x = gamma - zeroOffsetX;
-                let y = beta - zeroOffsetY;
-
-                document.getElementById('level-deg').innerText = `${x.toFixed(1)}° / ${y.toFixed(1)}°`;
-
-                // バブルの移動量計算 (最大傾き 45度で円の端に到達させる)
-                const maxAngle = 45;
-                const radiusMax = 90; // ピクセル
-                let px = (x / maxAngle) * radiusMax;
-                let py = (y / maxAngle) * radiusMax;
-
-                // 範囲制限
-                const dist = Math.sqrt(px*px + py*py);
-                if (dist > radiusMax) {
-                    px = (px / dist) * radiusMax;
-                    py = (py / dist) * radiusMax;
-                }
-
-                const bubble = document.getElementById('bubble');
-                bubble.style.transform = `translate(${px}px, ${py}px)`;
-
-                // 水平判定 (誤差 1度以内)
-                const levelCard = document.getElementById('level-card');
-                const levelBubbleBox = document.getElementById('level-bubble-box');
-                const badge = document.getElementById('level-status-badge');
-
-                if (Math.abs(x) < 1.0 && Math.abs(y) < 1.0) {
-                    levelCard.className = "w-full bg-emerald-950/60 border border-emerald-500/50 rounded-3xl p-6 mb-6 text-center transition-colors duration-300 shadow-xl shadow-emerald-500/10";
-                    levelBubbleBox.className = "relative w-64 h-64 rounded-full border-4 border-emerald-500 bg-emerald-950/20 shadow-2xl flex items-center justify-center overflow-hidden transition-colors duration-300";
-                    badge.className = "px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-600 text-white transition-colors";
-                    badge.innerText = "水平パーフェクト";
-                } else {
-                    levelCard.className = "w-full bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-6 text-center transition-colors duration-300 shadow-xl";
-                    levelBubbleBox.className = "relative w-64 h-64 rounded-full border-4 border-slate-800 bg-slate-900/80 shadow-2xl flex items-center justify-center overflow-hidden transition-colors duration-300";
-                    badge.className = "px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-800 text-slate-300 transition-colors";
-                    badge.innerText = "測定中";
-                }
-            }
-        }
-
-        function calibrateLevel() {
-            // 現在の値をゼロ点として記録
-            // イベントから取得する必要があるため直近の値を取得できるよう一時変数に保持しても良いが簡易的にリセット
-            zeroOffsetX = 0;
-            zeroOffsetY = 0;
-            // 実際は直前のイベント値をオフセットにする
-            if(window.lastBeta && window.lastGamma) {
-                zeroOffsetX = window.lastGamma;
-                zeroOffsetY = window.lastBeta;
-            }
-        }
-
-        // 補助用イベントリスナー内で直近値を保存
-        window.addEventListener('deviceorientation', (e) => {
-            window.lastBeta = e.beta;
-            window.lastGamma = e.gamma;
-        }, true);
-
-
-        // モーダル操作
-        function openInfoModal() {
-            document.getElementById('info-modal').classList.remove('hidden');
-        }
-        function closeInfoModal() {
-            document.getElementById('info-modal').classList.add('hidden');
-        }
-
-        // 初期化実行
-        window.onload = function() {
-            renderRulerTicks();
-        };
-    </script>
-</body>
-</html>
+<body>
+<header><h1>ポケット計測ツール</h1><p>定規・分度器・コンパス・水平器｜スマートフォン対応</p></header>
+<nav>
+<button class="active" data-tab="ruler">定規</button><button data-tab="protractor">分度器</button><button data-tab="compass">コンパス</button><button data-tab="level">水平器</button>
+</nav>
+<main>
+<section id="ruler" class="tool active">
+<div class="panel"><h2>画面定規</h2><p class="hint">画面上に実寸目盛りを表示します。スマホごとに画面密度が異なるため、最初に既知の長さで校正してください。</p>
+<div class="scale-row"><label>校正：1 cmが実物で何mmに見えるか</label><input id="cal" type="number" min="5" max="100" step=".1" value="10"></div>
+<div class="controls"><button class="action" id="calibrate">この値で校正</button><button class="secondary" id="minus">少し縮小</button><button class="secondary" id="plus">少し拡大</button></div>
+<div class="ruler-wrap"><div class="ruler" id="rulerBar"></div></div>
+<div class="hint">目盛りは横方向にスクロールできます。細線＝1mm、長い線＝1cmです。</div>
+</div>
+<div class="panel"><h2>校正の方法</h2><p class="hint">定規など実寸が分かる物を画面に当て、表示された10cmの長さが実物と一致するように調整してください。画面保護フィルムや表示倍率の影響もあるため、校正後も精密測定には実物の定規を使用してください。</p></div>
+</section>
+<section id="protractor" class="tool">
+<div class="panel"><h2>分度器</h2><p class="hint">半円の中心を頂点として、青い辺をドラッグして角度を調整できます。</p>
+<div class="angle-readout"><span id="angleValue">45.0</span>°</div>
+<div class="angle-stage" id="angleStage">
+<svg class="protractor" viewBox="0 0 340 190" aria-label="分度器">
+<path d="M20 170 A150 150 0 0 1 320 170" fill="#edf4fa" stroke="#526a80" stroke-width="2"/>
+<line x1="20" y1="170" x2="320" y2="170" stroke="#26394e" stroke-width="2"/>
+<g id="proTicks"></g>
+<line id="arm" x1="170" y1="170" x2="276" y2="64" stroke="#1479c9" stroke-width="5" stroke-linecap="round"/>
+<circle cx="170" cy="170" r="6" fill="#14243a"/>
+<circle id="dragHandle" cx="276" cy="64" r="13" fill="#1479c9" stroke="white" stroke-width="3"/>
+</svg></div>
+<div class="controls"><label>角度</label><input id="angleInput" type="number" min="0" max="180" step=".5" value="45"><button class="secondary" id="angleReset">45°に戻す</button></div>
+</div>
+</section>
+<section id="compass" class="tool">
+<div class="panel"><h2>電子コンパス</h2><div class="compass-stage"><div class="compass"><span class="cardinal north">N</span><span class="cardinal east">E</span><span class="cardinal south">S</span><span class="cardinal west">W</span><div class="needle" id="needle"></div></div></div>
+<div class="big-reading"><span id="heading">--</span>°</div><p class="hint" id="direction">方角を取得していません</p>
+<div class="controls"><button class="action" id="compassStart">方角センサーを開始</button></div>
+<div class="status">スマホを水平に近い状態で持ち、周囲の磁気の影響を避けてください。金属・磁石・スピーカーの近くでは誤差が出ます。</div>
+</div>
+</section>
+<section id="level" class="tool">
+<div class="panel"><h2>水平器</h2><div class="level-stage"><div class="level-circle"><div class="level-cross"></div><div class="level-bubble" id="bubble"></div></div></div>
+<div class="big-reading"><span id="tiltX">--</span>°　<span id="tiltY">--</span>°</div><p class="hint" style="text-align:center">左右の傾き　／　前後の傾き</p>
+<div class="controls"><button class="action" id="levelStart">傾きセンサーを開始</button><button class="secondary" id="levelZero">ゼロ点を設定</button></div>
+<div class="status" id="levelStatus">センサー開始ボタンを押してください。</div>
+</div>
+</section>
+<div class="panel"><p class="hint">このページは外部通信なしで動作します。コンパス・水平器は端末のセンサーに対応したブラウザが必要です。iPhoneではSafariで開き、ボタンを押した後にセンサー利用を許可してください。センサー非対応のPCでは利用できません。</p></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));}));
+let pxPerMm=5.0;
+function drawRuler(){const bar=$('rulerBar');bar.innerHTML='';const width=Math.max(window.innerWidth-40,pxPerMm*1000);bar.style.width=width+'px';bar.style.minWidth=width+'px';for(let mm=0;mm<=Math.floor(width/pxPerMm);mm++){let t=document.createElement('i');t.className='tick '+(mm%10===0?'big':mm%5===0?'cm':'mm');t.style.left=(mm*pxPerMm)+'px';bar.appendChild(t);if(mm%10===0){let l=document.createElement('span');l.className='tick-label';l.style.left=(mm*pxPerMm)+'px';l.textContent=mm/10;bar.appendChild(l);}}}
+function applyCal(){const actual=Number($('cal').value);if(actual>0){pxPerMm=pxPerMm*10/actual;drawRuler();$('cal').value='10';}}
+$('calibrate').onclick=applyCal;$('plus').onclick=()=>{pxPerMm*=1.02;drawRuler()};$('minus').onclick=()=>{pxPerMm/=1.02;drawRuler()};window.addEventListener('resize',drawRuler);drawRuler();
+// Protractor
+let angle=45;function setAngle(a){angle=Math.max(0,Math.min(180,a));const rad=angle*Math.PI/180,x=170+150*Math.cos(rad),y=170-150*Math.sin(rad);$('arm').setAttribute('x2',x);$('arm').setAttribute('y2',y);$('dragHandle').setAttribute('cx',x);$('dragHandle').setAttribute('cy',y);$('angleValue').textContent=angle.toFixed(1);$('angleInput').value=angle.toFixed(1);}
+$('angleInput').addEventListener('change',()=>setAngle(Number($('angleInput').value)||0));$('angleReset').onclick=()=>setAngle(45);
+const ticks=$('proTicks');for(let d=0;d<=180;d+=5){let r=d*Math.PI/180,x1=170+150*Math.cos(r),y1=170-150*Math.sin(r),len=d%10===0?14:7,x2=170+(150-len)*Math.cos(r),y2=170-(150-len)*Math.sin(r);let line=document.createElementNS('http://www.w3.org/2000/svg','line');line.setAttribute('x1',x1);line.setAttribute('y1',y1);line.setAttribute('x2',x2);line.setAttribute('y2',y2);line.setAttribute('stroke','#526a80');line.setAttribute('stroke-width','1');ticks.appendChild(line);if(d%10===0){let tx=170+128*Math.cos(r),ty=170-128*Math.sin(r),txt=document.createElementNS('http://www.w3.org/2000/svg','text');txt.setAttribute('x',tx);txt.setAttribute('y',ty+4);txt.setAttribute('font-size','9');txt.setAttribute('text-anchor','middle');txt.setAttribute('fill','#33465b');txt.textContent=d;ticks.appendChild(txt);}}
+setAngle(45);let dragging=false;const stage=$('angleStage');function dragAngle(e){const rect=$('protractor').getBoundingClientRect(),scale=340/rect.width,cx=rect.left+rect.width/2,cy=rect.top+rect.height*(170/190);let dx=(e.clientX-cx),dy=(cy-e.clientY);setAngle(Math.atan2(dy,dx)*180/Math.PI);}stage.addEventListener('pointerdown',e=>{dragging=true;stage.setPointerCapture(e.pointerId);dragAngle(e)});stage.addEventListener('pointermove',e=>{if(dragging)dragAngle(e)});stage.addEventListener('pointerup',()=>dragging=false);stage.addEventListener('pointercancel',()=>dragging=false);
+// Sensors
+function requestPermission(type){const C=type==='orientation'?DeviceOrientationEvent:DeviceMotionEvent;if(C&&typeof C.requestPermission==='function')return C.requestPermission();return Promise.resolve('granted');}
+function compassUpdate(e){let h;if(typeof e.webkitCompassHeading==='number')h=e.webkitCompassHeading;else if(typeof e.alpha==='number')h=(360-e.alpha)%360;else return;$('heading').textContent=h.toFixed(0);$('needle').style.transform=`translate(-50%,-50%) rotate(${h}deg)`;const dirs=['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];$('direction').textContent=dirs[Math.round(h/22.5)%16]+' の方向';}
+$('compassStart').onclick=async()=>{try{const p=await requestPermission('orientation');if(p!=='granted')throw Error('センサー利用が許可されていません');window.addEventListener('deviceorientation',compassUpdate,true);$('direction').textContent='センサーを読み取り中…';}catch(e){$('direction').textContent=e.message||'このブラウザでは方角センサーを利用できません';}};
+let zeroX=0,zeroY=0,lastX=0,lastY=0;function motionUpdate(e){let a=e.accelerationIncludingGravity;if(!a)return;let x=Math.atan2(a.x,Math.sqrt(a.y*a.y+a.z*a.z))*180/Math.PI;let y=Math.atan2(a.y,Math.sqrt(a.x*a.x+a.z*a.z))*180/Math.PI;lastX=x;lastY=y;let dx=x-zeroX,dy=y-zeroY;$('tiltX').textContent=dx.toFixed(1);$('tiltY').textContent=dy.toFixed(1);let bx=Math.max(-105,Math.min(105,dy*5.5)),by=Math.max(-105,Math.min(105,dx*5.5));$('bubble').style.transform=`translate(calc(-50% + ${bx}px),calc(-50% + ${by}px))`;}
+$('levelStart').onclick=async()=>{try{const p=await requestPermission('motion');if(p!=='granted')throw Error('センサー利用が許可されていません');window.addEventListener('devicemotion',motionUpdate,true);$('levelStatus').textContent='センサーを読み取り中です。スマホを水平な面に置いてください。';}catch(e){$('levelStatus').textContent=e.message||'このブラウザでは傾きセンサーを利用できません';}};
+$('levelZero').onclick=()=>{zeroX=lastX;zeroY=lastY;$('levelStatus').textContent='現在の位置を0°に設定しました。';};
+</script>
+</body></html>
