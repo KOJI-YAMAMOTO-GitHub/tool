@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#14243a">
+<title>ポケット計測ツール</title>
+<style>
+:root{--bg:#f2f5f9;--panel:#fff;--ink:#182638;--muted:#68778a;--blue:#1769aa;--line:#d9e1ea;--accent:#18a0a6}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{background:#14243a;color:white;padding:16px 18px 13px}header h1{font-size:19px;margin:0 0 4px}header p{font-size:12px;color:#c6d2df;margin:0}
+nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px;background:#14243a;position:sticky;top:0;z-index:5}
+nav button{border:1px solid #526277;background:#263b55;color:#eaf1f8;border-radius:10px;padding:10px 2px;font-size:13px}
+nav button.active{background:#fff;color:#14243a;border-color:#fff;font-weight:700}
+main{max-width:760px;margin:auto;padding:12px}
+.panel{background:var(--panel);border-radius:16px;padding:15px;margin-bottom:12px;box-shadow:0 2px 12px #172b4210}
+h2{font-size:17px;margin:0 0 8px}.hint{font-size:12px;color:var(--muted);line-height:1.55}
+.tool{display:none}.tool.active{display:block}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button.action{background:var(--blue);color:white;border:0;border-radius:10px;padding:11px 14px;font-size:14px}
+button.secondary{background:#e8eef5;color:#24384d;border:0;border-radius:10px;padding:10px 12px;font-size:13px}
+input[type=range]{width:100%;accent-color:var(--blue)}input[type=number]{width:92px;padding:9px;border:1px solid var(--line);border-radius:8px;font-size:16px}
+label{font-size:13px;color:var(--muted)}
+.ruler-wrap{overflow-x:auto;padding:20px 0 10px;touch-action:pan-x}
+.ruler{height:88px;position:relative;min-width:100%;background:linear-gradient(#fff,#f8fbff);border-bottom:2px solid #27394d}
+.tick{position:absolute;bottom:0;width:1px;background:#26394e}.tick.mm{height:9px}.tick.cm{height:19px;width:1.5px}.tick.big{height:30px;width:2px}
+.tick-label{position:absolute;top:5px;transform:translateX(-50%);font-size:11px;color:#33465b}
+.scale-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+.angle-stage{height:310px;display:grid;place-items:center;touch-action:none}
+.protractor{width:min(88vw,330px);height:auto;overflow:visible}
+.angle-readout{font-size:34px;font-weight:750;text-align:center;font-variant-numeric:tabular-nums}
+.compass-stage{height:300px;display:grid;place-items:center}
+.compass{width:min(78vw,280px);aspect-ratio:1;border:8px solid #dce5ed;border-radius:50%;position:relative;background:radial-gradient(circle,#fff 0 54%,#f0f5fa 55% 100%);box-shadow:inset 0 0 0 1px #c7d3df}
+.compass:before{content:"";position:absolute;inset:10%;border:1px solid #b8c7d6;border-radius:50%}
+.cardinal{position:absolute;font-weight:800;font-size:17px;transform:translate(-50%,-50%)}.north{top:7%;left:50%;color:#d33}.east{top:50%;right:0;transform:translate(50%,-50%)}.south{bottom:0;left:50%;transform:translate(-50%,50%)}.west{top:50%;left:0;transform:translate(-50%,-50%)}
+.needle{position:absolute;left:50%;top:50%;width:0;height:0;transform:translate(-50%,-50%) rotate(0deg);transition:transform .12s linear}
+.needle:before{content:"";position:absolute;left:-7px;top:-104px;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:104px solid #d94343}
+.needle:after{content:"";position:absolute;left:-7px;top:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:75px solid #63788e}
+.level-stage{height:280px;display:grid;place-items:center}
+.level-circle{width:min(76vw,270px);aspect-ratio:1;border:3px solid #7b8ea2;border-radius:50%;position:relative;background:radial-gradient(circle,#eaf6f6 0 3px,transparent 4px),linear-gradient(90deg,transparent 49.7%,#a7b8c8 50%,transparent 50.3%),linear-gradient(transparent 49.7%,#a7b8c8 50%,transparent 50.3%),#f9fcff;overflow:hidden}
+.level-bubble{position:absolute;width:34px;height:34px;border-radius:50%;background:#18a0a6aa;border:2px solid #087f86;left:50%;top:50%;transform:translate(-50%,-50%);box-shadow:0 1px 5px #0002}
+.level-cross{position:absolute;left:50%;top:50%;width:12px;height:12px;border:1px solid #7b8ea2;border-radius:50%;transform:translate(-50%,-50%)}
+.big-reading{text-align:center;font-size:30px;font-weight:750;font-variant-numeric:tabular-nums}
+.status{padding:10px 12px;background:#edf4f9;border-radius:10px;font-size:13px;color:#42576d;margin-top:10px}
+small{color:var(--muted)}
+@media(min-width:600px){main{padding:18px}.angle-stage{height:360px}}
+</style>
+</head>
+<body>
+<header><h1>ポケット計測ツール</h1><p>定規・分度器・コンパス・水平器｜スマートフォン対応</p></header>
+<nav>
+<button class="active" data-tab="ruler">定規</button><button data-tab="protractor">分度器</button><button data-tab="compass">コンパス</button><button data-tab="level">水平器</button>
+</nav>
+<main>
+<section id="ruler" class="tool active">
+<div class="panel"><h2>画面定規</h2><p class="hint">画面上に実寸目盛りを表示します。スマホごとに画面密度が異なるため、最初に既知の長さで校正してください。</p>
+<div class="scale-row"><label>校正：1 cmが実物で何mmに見えるか</label><input id="cal" type="number" min="5" max="100" step=".1" value="10"></div>
+<div class="controls"><button class="action" id="calibrate">この値で校正</button><button class="secondary" id="minus">少し縮小</button><button class="secondary" id="plus">少し拡大</button></div>
+<div class="ruler-wrap"><div class="ruler" id="rulerBar"></div></div>
+<div class="hint">目盛りは横方向にスクロールできます。細線＝1mm、長い線＝1cmです。</div>
+</div>
+<div class="panel"><h2>校正の方法</h2><p class="hint">定規など実寸が分かる物を画面に当て、表示された10cmの長さが実物と一致するように調整してください。画面保護フィルムや表示倍率の影響もあるため、校正後も精密測定には実物の定規を使用してください。</p></div>
+</section>
+<section id="protractor" class="tool">
+<div class="panel"><h2>分度器</h2><p class="hint">半円の中心を頂点として、青い辺をドラッグして角度を調整できます。</p>
+<div class="angle-readout"><span id="angleValue">45.0</span>°</div>
+<div class="angle-stage" id="angleStage">
+<svg class="protractor" viewBox="0 0 340 190" aria-label="分度器">
+<path d="M20 170 A150 150 0 0 1 320 170" fill="#edf4fa" stroke="#526a80" stroke-width="2"/>
+<line x1="20" y1="170" x2="320" y2="170" stroke="#26394e" stroke-width="2"/>
+<g id="proTicks"></g>
+<line id="arm" x1="170" y1="170" x2="276" y2="64" stroke="#1479c9" stroke-width="5" stroke-linecap="round"/>
+<circle cx="170" cy="170" r="6" fill="#14243a"/>
+<circle id="dragHandle" cx="276" cy="64" r="13" fill="#1479c9" stroke="white" stroke-width="3"/>
+</svg></div>
+<div class="controls"><label>角度</label><input id="angleInput" type="number" min="0" max="180" step=".5" value="45"><button class="secondary" id="angleReset">45°に戻す</button></div>
+</div>
+</section>
+<section id="compass" class="tool">
+<div class="panel"><h2>電子コンパス</h2><div class="compass-stage"><div class="compass"><span class="cardinal north">N</span><span class="cardinal east">E</span><span class="cardinal south">S</span><span class="cardinal west">W</span><div class="needle" id="needle"></div></div></div>
+<div class="big-reading"><span id="heading">--</span>°</div><p class="hint" id="direction">方角を取得していません</p>
+<div class="controls"><button class="action" id="compassStart">方角センサーを開始</button></div>
+<div class="status">スマホを水平に近い状態で持ち、周囲の磁気の影響を避けてください。金属・磁石・スピーカーの近くでは誤差が出ます。</div>
+</div>
+</section>
+<section id="level" class="tool">
+<div class="panel"><h2>水平器</h2><div class="level-stage"><div class="level-circle"><div class="level-cross"></div><div class="level-bubble" id="bubble"></div></div></div>
+<div class="big-reading"><span id="tiltX">--</span>°　<span id="tiltY">--</span>°</div><p class="hint" style="text-align:center">左右の傾き　／　前後の傾き</p>
+<div class="controls"><button class="action" id="levelStart">傾きセンサーを開始</button><button class="secondary" id="levelZero">ゼロ点を設定</button></div>
+<div class="status" id="levelStatus">センサー開始ボタンを押してください。</div>
+</div>
+</section>
+<div class="panel"><p class="hint">このページは外部通信なしで動作します。コンパス・水平器は端末のセンサーに対応したブラウザが必要です。iPhoneではSafariで開き、ボタンを押した後にセンサー利用を許可してください。センサー非対応のPCでは利用できません。</p></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));}));
+let pxPerMm=5.0;
+function drawRuler(){const bar=$('rulerBar');bar.innerHTML='';const width=Math.max(window.innerWidth-40,pxPerMm*1000);bar.style.width=width+'px';bar.style.minWidth=width+'px';for(let mm=0;mm<=Math.floor(width/pxPerMm);mm++){let t=document.createElement('i');t.className='tick '+(mm%10===0?'big':mm%5===0?'cm':'mm');t.style.left=(mm*pxPerMm)+'px';bar.appendChild(t);if(mm%10===0){let l=document.createElement('span');l.className='tick-label';l.style.left=(mm*pxPerMm)+'px';l.textContent=mm/10;bar.appendChild(l);}}}
+function applyCal(){const actual=Number($('cal').value);if(actual>0){pxPerMm=pxPerMm*10/actual;drawRuler();$('cal').value='10';}}
+$('calibrate').onclick=applyCal;$('plus').onclick=()=>{pxPerMm*=1.02;drawRuler()};$('minus').onclick=()=>{pxPerMm/=1.02;drawRuler()};window.addEventListener('resize',drawRuler);drawRuler();
+// Protractor
+let angle=45;function setAngle(a){angle=Math.max(0,Math.min(180,a));const rad=angle*Math.PI/180,x=170+150*Math.cos(rad),y=170-150*Math.sin(rad);$('arm').setAttribute('x2',x);$('arm').setAttribute('y2',y);$('dragHandle').setAttribute('cx',x);$('dragHandle').setAttribute('cy',y);$('angleValue').textContent=angle.toFixed(1);$('angleInput').value=angle.toFixed(1);}
+$('angleInput').addEventListener('change',()=>setAngle(Number($('angleInput').value)||0));$('angleReset').onclick=()=>setAngle(45);
+const ticks=$('proTicks');for(let d=0;d<=180;d+=5){let r=d*Math.PI/180,x1=170+150*Math.cos(r),y1=170-150*Math.sin(r),len=d%10===0?14:7,x2=170+(150-len)*Math.cos(r),y2=170-(150-len)*Math.sin(r);let line=document.createElementNS('http://www.w3.org/2000/svg','line');line.setAttribute('x1',x1);line.setAttribute('y1',y1);line.setAttribute('x2',x2);line.setAttribute('y2',y2);line.setAttribute('stroke','#526a80');line.setAttribute('stroke-width','1');ticks.appendChild(line);if(d%10===0){let tx=170+128*Math.cos(r),ty=170-128*Math.sin(r),txt=document.createElementNS('http://www.w3.org/2000/svg','text');txt.setAttribute('x',tx);txt.setAttribute('y',ty+4);txt.setAttribute('font-size','9');txt.setAttribute('text-anchor','middle');txt.setAttribute('fill','#33465b');txt.textContent=d;ticks.appendChild(txt);}}
+setAngle(45);let dragging=false;const stage=$('angleStage');function dragAngle(e){const rect=$('protractor').getBoundingClientRect(),scale=340/rect.width,cx=rect.left+rect.width/2,cy=rect.top+rect.height*(170/190);let dx=(e.clientX-cx),dy=(cy-e.clientY);setAngle(Math.atan2(dy,dx)*180/Math.PI);}stage.addEventListener('pointerdown',e=>{dragging=true;stage.setPointerCapture(e.pointerId);dragAngle(e)});stage.addEventListener('pointermove',e=>{if(dragging)dragAngle(e)});stage.addEventListener('pointerup',()=>dragging=false);stage.addEventListener('pointercancel',()=>dragging=false);
+// Sensors
+function requestPermission(type){const C=type==='orientation'?DeviceOrientationEvent:DeviceMotionEvent;if(C&&typeof C.requestPermission==='function')return C.requestPermission();return Promise.resolve('granted');}
+function compassUpdate(e){let h;if(typeof e.webkitCompassHeading==='number')h=e.webkitCompassHeading;else if(typeof e.alpha==='number')h=(360-e.alpha)%360;else return;$('heading').textContent=h.toFixed(0);$('needle').style.transform=`translate(-50%,-50%) rotate(${h}deg)`;const dirs=['北','北北東','北東','東北東','東','東南東','南東','南南東','南','南南西','南西','西南西','西','西北西','北西','北北西'];$('direction').textContent=dirs[Math.round(h/22.5)%16]+' の方向';}
+$('compassStart').onclick=async()=>{try{const p=await requestPermission('orientation');if(p!=='granted')throw Error('センサー利用が許可されていません');window.addEventListener('deviceorientation',compassUpdate,true);$('direction').textContent='センサーを読み取り中…';}catch(e){$('direction').textContent=e.message||'このブラウザでは方角センサーを利用できません';}};
+let zeroX=0,zeroY=0,lastX=0,lastY=0;function motionUpdate(e){let a=e.accelerationIncludingGravity;if(!a)return;let x=Math.atan2(a.x,Math.sqrt(a.y*a.y+a.z*a.z))*180/Math.PI;let y=Math.atan2(a.y,Math.sqrt(a.x*a.x+a.z*a.z))*180/Math.PI;lastX=x;lastY=y;let dx=x-zeroX,dy=y-zeroY;$('tiltX').textContent=dx.toFixed(1);$('tiltY').textContent=dy.toFixed(1);let bx=Math.max(-105,Math.min(105,dy*5.5)),by=Math.max(-105,Math.min(105,dx*5.5));$('bubble').style.transform=`translate(calc(-50% + ${bx}px),calc(-50% + ${by}px))`;}
+$('levelStart').onclick=async()=>{try{const p=await requestPermission('motion');if(p!=='granted')throw Error('センサー利用が許可されていません');window.addEventListener('devicemotion',motionUpdate,true);$('levelStatus').textContent='センサーを読み取り中です。スマホを水平な面に置いてください。';}catch(e){$('levelStatus').textContent=e.message||'このブラウザでは傾きセンサーを利用できません';}};
+$('levelZero').onclick=()=>{zeroX=lastX;zeroY=lastY;$('levelStatus').textContent='現在の位置を0°に設定しました。';};
+</script>
+</body></html>
