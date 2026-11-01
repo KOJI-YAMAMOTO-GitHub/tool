@@ -113,4 +113,5 @@ let zeroX=0,zeroY=0,lastX=0,lastY=0;function motionUpdate(e){let a=e.acceleratio
 $('levelStart').onclick=async()=>{try{const p=await requestPermission('motion');if(p!=='granted')throw Error('センサー利用が許可されていません');window.addEventListener('devicemotion',motionUpdate,true);$('levelStatus').textContent='センサーを読み取り中です。スマホを水平な面に置いてください。';}catch(e){$('levelStatus').textContent=e.message||'このブラウザでは傾きセンサーを利用できません';}};
 $('levelZero').onclick=()=>{zeroX=lastX;zeroY=lastY;$('levelStatus').textContent='現在の位置を0°に設定しました。';};
 </script>
-</body></html>
+</body>
+</html>
