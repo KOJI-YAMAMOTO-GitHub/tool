@@ -22,6 +22,9 @@
 [https://koji-yamamoto-github.github.io/tool/360_photo_cropper](https://koji-yamamoto-github.github.io/tool/360_photo_cropper)
 
 # 便利ツール
+## ポモドーロタイマー
+[https://koji-yamamoto-github.github.io/clock/](https://koji-yamamoto-github.github.io/clock/)
+
 ## 画像一括リサイズ・トリミング
 [https://koji-yamamoto-github.github.io/tool/resizeImg](https://koji-yamamoto-github.github.io/tool/resizeImg)
 
